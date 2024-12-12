@@ -1,0 +1,8 @@
+*.docx
+*.pdf
+*.pyc
+*.db
+.env
+.venv/
+__pycache__/
+reference/
