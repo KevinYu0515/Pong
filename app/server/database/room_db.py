@@ -1,8 +1,13 @@
-from sqlalchemy import create_engine, Column, Integer, Text
+from sqlalchemy import Column, Integer, Text, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+DATABASE_URL = "sqlite:///room_settings.db"
+
 Base = declarative_base()
+engine = create_engine(DATABASE_URL)
+Session = sessionmaker(bind=engine)
+
 class RoomSettings(Base):
     __tablename__ = 'room_settings'
 
@@ -18,15 +23,9 @@ class RoomSettings(Base):
     def __repr__(self):
         return f"<RoomSettings(mode={self.mode}, player_limit={self.player_limit}, " \
                f"duration={self.duration}, winning_points={self.winning_points}, disconnection={self.disconnection})>"
-
-DATABASE_URL = 'sqlite:///room_settings.db'
-
-engine = create_engine(DATABASE_URL, echo=True)
-
+    
 def create_db():
     Base.metadata.create_all(engine)
-
-Session = sessionmaker(bind=engine)
 
 def add_room_setting(mode, player_limit, duration, winning_points, disconnection):
     session = Session()
@@ -83,8 +82,19 @@ def get_room_setting(id):
     session.close()
     return room_setting
 
+
 def get_all_room_settings():
     session = Session()
     room_settings = session.query(RoomSettings).all()
+    room_settings = [{
+        "id": room.id,
+        "mode": room.mode,
+        "player_limit": room.player_limit,
+        "duration": room.duration,
+        "winning_points": room.winning_points,
+        "disconnection": room.disconnection,
+        "left_group": room.left_group,
+        "right_group": room.right_group
+    } for room in room_settings]
     session.close()
     return room_settings

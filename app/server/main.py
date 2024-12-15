@@ -1,7 +1,73 @@
-from database import init_app
+from database import init_db
+from events import *
+import websockets, os
+import os, asyncio, json
 
-def main():
-    init_app()
+HOST = os.getenv('HOST', 'localhost')
+PORT = os.getenv('PORT', '10001')
+connected_clients = set()
+
+def handle_event(event):
+    
+    response, refresh = {}, True
+    if event.get('type') == 'login':
+        response = login(event.get('data'))
+        refresh = False
+    if event.get('type') == 'logout':
+        response = logout(event.get('data'))
+        refresh = False
+    if event.get('type') == 'get_all_rooms':
+        response = get_all_rooms()
+        refresh = False
+    if event.get('type') == 'get_players':
+        response = get_players(event.get('data'))
+        refresh = False
+
+    if event.get('type') == 'create_room':
+        response = create_room(event.get('data'))
+    if event.get('type') == 'group_action':
+        response = group_action(event.get('action'), event.get('data'))
+    
+    return [response, refresh]    
+
+async def server(websocket):
+    
+    print("Client connected")
+    connected_clients.add(websocket)
+    print(connected_clients)
+    while True:
+        try:
+            message = await websocket.recv()
+            print(f"Received message: {message}")
+            event = json.loads(message)
+            response, is_refresh = handle_event(event)
+            await websocket.send(json.dumps(response))
+            print(f"Sending response: {response}")
+            if is_refresh:
+                message = json.dumps({"status": "refresh"})
+                print(websocket.remote_address[0])
+                for client in connected_clients:
+                    print(f"Sending refresh to {client.remote_address}")
+                    if client.remote_address != websocket.remote_address:
+                        try:
+                            await client.send(message)
+                        except websockets.exceptions.ConnectionClosed:
+                            connected_clients.remove(client)
+
+        except websockets.exceptions.ConnectionClosedOK:
+            print("Client disconnected")
+            connected_clients.remove(websocket)
+            
+        except KeyboardInterrupt:
+            print("Server stopped")
+            break
+   
+
+async def main():
+    init_db()
+    async with websockets.serve(server, HOST, PORT):
+        print(f'start server: {HOST}:{PORT}')
+        await asyncio.Future()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

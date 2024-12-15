@@ -1,7 +1,8 @@
 from  components.base import WindowState
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
-from server.database.room_db import add_room_setting
+import json, asyncio
+# from server.database.room_db import add_room_setting
 
 class Create_RoomState(WindowState):
     def __init__(self, app):
@@ -66,9 +67,24 @@ class Create_RoomState(WindowState):
         self.lf_player_limit.pack_forget()
     
     def submit(self, **result):
-       print(result)
-       add_room_setting(**result)
-       self.app.change_state('Lobby')
+        print("Creating Room...", result)
+
+        async def handle_create_room():
+            try:
+                await self.app.websocket_client.send(json.dumps({
+                    "type": "create_room",
+                    "data": result
+                }))
+
+                async with self.app.condition:
+                    await self.app.condition.wait()
+                    print(f"Room created successfully")
+                    self.app.change_state('Lobby')
+
+            except Exception as e:
+                print(e)
+       
+        asyncio.run_coroutine_threadsafe(handle_create_room(), self.app.loop)
 
     def toggle_player_limit(self, selected_mode):
         if selected_mode == 0:

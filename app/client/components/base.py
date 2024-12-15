@@ -1,13 +1,18 @@
 from abc import ABC, abstractmethod
 from ttkbootstrap import Window
 from typing import Dict
+from asyncio import AbstractEventLoop
 
 class AppInterface(ABC):
     def __init__(self):
+        self.loop: None | AbstractEventLoop = None
+        self.websocket_client = None
         self.window: None | Window = None
         self.username: None | str = None
         self.room_id: None | int = None
         self.states: Dict[str, WindowState] 
+        self.event_response: None | str = None
+        self.condition: None | AbstractEventLoop = None
 
     @abstractmethod
     def clear_window(self):

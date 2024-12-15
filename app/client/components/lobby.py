@@ -1,9 +1,8 @@
 from components.base import WindowState
-from server.database.room_db import get_all_room_settings, update_room_groups
 from ttkbootstrap.constants import *
 from constants import mode_list, disconnection_list
 import ttkbootstrap as ttk
-import json
+import json, asyncio
     
 class LobbyState(WindowState):
     def __init__(self, app):
@@ -13,6 +12,7 @@ class LobbyState(WindowState):
     def handle(self):
         print("Displaying lobby screen...")
         self.create_ui()
+        asyncio.run_coroutine_threadsafe(self.get_all_rooms(), self.app.loop)
 
     def create_ui(self):
         self.label_welcome = ttk.Label(
@@ -29,9 +29,20 @@ class LobbyState(WindowState):
 
         logout_button = ttk.Button(self.app.window, text="Logout", command=self.on_logout)
         logout_button.pack(pady=20)
-        self.build_room()
 
-    def build_room(self):
+    async def get_all_rooms(self):
+        print("Getting all rooms...")
+        try:
+            await self.app.websocket_client.send(json.dumps({"type": "get_all_rooms"}))
+            
+            async with self.app.condition:
+                await self.app.condition.wait()
+                self.build_room(self.app.event_response.get('data'))
+
+        except Exception as e:
+            print(e)
+
+    def build_room(self, rooms=[]):
         print("Building room...")
         self.canvas = ttk.Canvas(self.app.window, highlightthickness=0)
         self.scrollable_frame = ttk.Frame(self.canvas)
@@ -47,15 +58,15 @@ class LobbyState(WindowState):
         
         self.scrollable_frame.bind("<Configure>", update_scroll_region)
 
-        rooms = get_all_room_settings()
+        self.room_frames = []
         for idx, room in enumerate(rooms):
-            room_frame = ttk.Labelframe(self.scrollable_frame, text=f"房間 ID: {room.id}", bootstyle=PRIMARY, height=100, padding=20)
+            room_frame = ttk.Labelframe(self.scrollable_frame, text=f"房間 ID: {room.get('id')}", bootstyle=PRIMARY, height=100, padding=20)
             room_frame.pack(pady=10, fill="x", padx=(20, 0), expand=True)
-            label_text1 = [f"[{mode_list[room.mode]}]",
-                           *([f"[陣營上限 {room.player_limit} 位]"] if room.mode != 0 else ""),
-                           f"[每局 {room.duration} s]",
-                           f"[最快獲得 {room.winning_points} 分獲勝]"]
-            label_text2 = f"缺額機制: {disconnection_list[room.disconnection]}"
+            label_text1 = [f"[{mode_list[room.get('mode')]}]",
+                           *([f"[陣營上限 {room.get('player_limit')} 位]"] if room.get('mode') != 0 else ""),
+                           f"[每局 {room.get('duration')} s]",
+                           f"[最快獲得 {room.get('winning_points')} 分獲勝]"]
+            label_text2 = f"缺額機制: {disconnection_list[room.get('disconnection')]}"
             room_ui = {
                 "rule": ttk.Label(room_frame, text=' '.join(label_text1), style="primary.TLabel", font=("Arial", 10)),
                 "disconnection": ttk.Label(room_frame, text=label_text2, style="primary.TLabel", font=("Arial", 10))
@@ -64,8 +75,9 @@ class LobbyState(WindowState):
             for label in room_ui.values():
                 label.pack(pady=5, fill="x")
             
-            self.create_join_buttons(room_frame, room.id, json.loads(room.left_group), json.loads(room.right_group), room.player_limit)
+            self.create_join_buttons(room_frame, room.get('id'), json.loads(room.get('left_group')), json.loads(room.get('right_group')), room.get('player_limit'))
             self.room_frames.append(room_frame)
+        print(self.room_frames)
 
     def create_room(self):
         self.app.change_state('Create_Room')
@@ -84,6 +96,7 @@ class LobbyState(WindowState):
         count = ttk.Label(button_frame, text=f"{len(left_group)} VS. {len(right_group)}", style="info.TLabel", font=("Arial", 20))
         count.pack(pady=10, padx=30, side=ttk.LEFT, expand=True)
         
+        print(left_group, right_group)
         if len(right_group) >= player_limit:
             limit_right_label = ttk.Label(button_frame, text=f"已達人數限制", style="danger.TLabel", font=("Arial", 20))
             limit_right_label.pack(pady=10, padx=10, side=ttk.RIGHT)
@@ -98,10 +111,48 @@ class LobbyState(WindowState):
             right_group.append(self.app.username)
         
         print(f"Joining {group} group...")
-        update_room_groups(room_id, left_group=json.dumps(left_group), right_group=json.dumps(right_group))
-        self.app.set_room_id(room_id)
-        self.app.change_state('Waiting')
+
+        async def handle_join_group():
+            try:
+                await self.app.websocket_client.send(json.dumps({
+                    "type": "group_action",
+                    "action": "join_group",
+                    "data": {
+                        "room_id": room_id,
+                        "left_group": left_group,
+                        "right_group": right_group,
+                    }
+                }))
+
+                async with self.app.condition:
+                    await self.app.condition.wait()
+                    print("Joined group")
+                    self.app.set_room_id(room_id)
+                    self.app.change_state('Waiting')
+ 
+            except Exception as e:
+                print(e)
+        asyncio.run_coroutine_threadsafe(handle_join_group(), self.app.loop)
 
     def on_logout(self):
         print("Logging out...")
-        self.app.change_state('Login')
+
+        async def handle_logout():
+            try:
+                await self.app.websocket_client.send(json.dumps({
+                    "type": "logout",
+                    "data": {
+                        "name": self.app.username
+                    }
+                }))
+
+                async with self.app.condition:
+                    await self.app.condition.wait()
+                    print("Logged out")
+                    self.app.set_username(None)
+                    self.app.change_state('Login')
+
+            except Exception as e:
+                print(e)
+        
+        asyncio.run_coroutine_threadsafe(handle_logout(), self.app.loop)

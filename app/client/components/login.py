@@ -1,5 +1,6 @@
 from components.base import WindowState
 import ttkbootstrap as ttk
+import json, asyncio, threading
 
 class LoginState(WindowState):
     def __init__(self, app):
@@ -22,12 +23,31 @@ class LoginState(WindowState):
         self.username_entry = ttk.Entry(self.frame)
         self.username_entry.pack(pady=10)
 
-        login_button = ttk.Button(self.frame, text="Login", command=self.on_login)
+        login_button = ttk.Button(self.frame, text="Login", command=lambda: self.on_login())
         login_button.pack(pady=20)
 
     def on_login(self):
         username = self.username_entry.get()
-        if username:
-            print(f"Logged in as {username}")
-            self.app.set_username(username)
-            self.app.change_state('Lobby')
+        if not username:
+            return
+        
+        async def handle_login():
+            try:
+                await self.app.websocket_client.send(json.dumps({
+                    "type": "login",
+                    "data": {
+                        "name": username
+                    }
+                }))
+                
+                async with self.app.condition:
+                    await self.app.condition.wait()
+                    print(f"Logged in as {username}")
+                    self.app.set_username(username)
+                    self.app.change_state('Lobby')
+                    
+
+            except Exception as e:
+                print(e)
+
+        asyncio.run_coroutine_threadsafe(handle_login(), self.app.loop)
