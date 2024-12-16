@@ -31,7 +31,7 @@ def handle_event(event):
     return [response, refresh]    
 
 async def server(websocket):
-    
+
     print(f"Client {websocket.remote_address} connected")
     connected_clients.add(websocket)
 
@@ -58,13 +58,10 @@ async def server(websocket):
     except websockets.exceptions.ConnectionClosedOK:
         print("Client disconnected")
         connected_clients.remove(websocket)
-    
     except websockets.exceptions.ConnectionClosedError:
         print("Client disconnected with an error.")
-        
     except KeyboardInterrupt:
         print("Server stopped")
-   
 
 async def main():
     init_db()

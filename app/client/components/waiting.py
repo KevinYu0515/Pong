@@ -7,8 +7,10 @@ class WaitingState(WindowState):
     def __init__(self, app):
         super().__init__(app)
         self.is_ready = False
+        self.position = 0
         self.left_group = []
         self.right_group = []
+        self.player_frames = []
     
     def handle(self):
         print("Displaying waiting screen...")
@@ -64,14 +66,14 @@ class WaitingState(WindowState):
             print(e)
 
     def update_players(self):
+        self.player_frames = []
         for widget in self.info_frame.winfo_children():
             widget.destroy()
         
-        my_pos = 0
         if self.app.username in self.left_group:
             for idx, name in enumerate(self.left_group):
                 if name == self.app.username:
-                    my_pos = idx
+                    self.position = idx
 
                 player_frame = ttk.Frame(self.info_frame, padding=5)
                 player_frame.pack(fill='x', padx=10, pady=5)
@@ -79,16 +81,18 @@ class WaitingState(WindowState):
 
                 def switch_player(idx):
                     print(f"Switching player to {idx}")
-                    self.left_group[idx], self.left_group[my_pos]  = self.left_group[my_pos], self.left_group[idx]
+                    self.left_group[idx], self.left_group[self.position]  = self.left_group[self.position], self.left_group[idx]
                     self.update_players()
 
                 if name != self.app.username:
                     ttk.Button(player_frame, text="更換", command=lambda: switch_player(idx)).pack(side='right')
+                
+                self.player_frames.append(player_frame)
         
         elif self.app.username in self.right_group:
             for idx, name in enumerate(self.right_group):
                 if name == self.app.username:
-                    my_pos = idx
+                    self.position = idx
 
                 player_frame = ttk.Frame(self.info_frame, padding=5)
                 player_frame.pack(fill='x', padx=10, pady=5)
@@ -96,11 +100,18 @@ class WaitingState(WindowState):
 
                 def switch_player(idx):
                     print(f"Switching player to {idx}")
-                    self.right_group[idx], self.right_group[my_pos]  = self.right_group[my_pos], self.right_group[idx]
+                    self.right_group[idx], self.right_group[self.position]  = self.right_group[self.position], self.right_group[idx]
                     self.update_players()
                     
                 if name != self.app.username:
                     ttk.Button(player_frame, text="更換", command=lambda: switch_player(idx)).pack(side='left')
+
+                self.player_frames.append(player_frame)
+        
+        self.ready_button.config(text="準備", style='success.TButton')
+        self.player_frames[self.position].config(style='default.TFrame')
+        self.player_frames[self.position].children['!label'].config(style='default.TLabel')
+        self.is_ready = False
 
     def change_group(self):
         if self.app.username in self.left_group:
@@ -135,13 +146,20 @@ class WaitingState(WindowState):
         asyncio.run_coroutine_threadsafe(handle_change_group(), self.app.loop)
     
     def toggle_ready(self):
+        ready_style = ttk.Style()
+        ready_style.configure("Ready.TLabel", background="#5cb85c")
+
         if not self.is_ready:
             print(f"Player {self.app.username} ready")
             self.ready_button.config(text="取消準備", style='warning.TButton')
+            self.player_frames[self.position].config(style='success.TFrame')
+            self.player_frames[self.position].children['!label'].config(style='Ready.TLabel')
             self.is_ready = True
         else:
             print(f"Player {self.app.username} unready")
             self.ready_button.config(text="準備", style='success.TButton')
+            self.player_frames[self.position].config(style='default.TFrame')
+            self.player_frames[self.position].children['!label'].config(style='default.TLabel')
             self.is_ready = False
 
     def submit_chat(self, chat_text: str):
