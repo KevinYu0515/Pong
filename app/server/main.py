@@ -32,11 +32,11 @@ def handle_event(event):
 
 async def server(websocket):
     
-    print("Client connected")
+    print(f"Client {websocket.remote_address} connected")
     connected_clients.add(websocket)
-    print(connected_clients)
-    while True:
-        try:
+
+    try:
+        while True:
             message = await websocket.recv()
             print(f"Received message: {message}")
             event = json.loads(message)
@@ -53,14 +53,17 @@ async def server(websocket):
                             await client.send(message)
                         except websockets.exceptions.ConnectionClosed:
                             connected_clients.remove(client)
+                            break
 
-        except websockets.exceptions.ConnectionClosedOK:
-            print("Client disconnected")
-            connected_clients.remove(websocket)
-            
-        except KeyboardInterrupt:
-            print("Server stopped")
-            break
+    except websockets.exceptions.ConnectionClosedOK:
+        print("Client disconnected")
+        connected_clients.remove(websocket)
+    
+    except websockets.exceptions.ConnectionClosedError:
+        print("Client disconnected with an error.")
+        
+    except KeyboardInterrupt:
+        print("Server stopped")
    
 
 async def main():

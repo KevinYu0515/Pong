@@ -6,6 +6,7 @@ import json, asyncio
 class WaitingState(WindowState):
     def __init__(self, app):
         super().__init__(app)
+        self.is_ready = False
         self.left_group = []
         self.right_group = []
     
@@ -21,13 +22,14 @@ class WaitingState(WindowState):
         self.info_frame = ttk.Frame(self.app.window, padding=10, height=200)
         self.info_frame.pack(fill='x', anchor='n', padx=20, pady=5)
         
-        button_frame = ttk.Frame(self.app.window, padding=10, height=200)
-        button_frame.pack(fill='x', anchor='s', padx=20, pady=(5, 10))
-        ready_button = ttk.Button(button_frame, text="準備", command=lambda: self.ready())
-        ready_button.pack(pady=10, padx=10, side='left')
-        return_button = ttk.Button(button_frame, text="切換陣營", command=lambda: self.change_group())
+        self.button_frame = ttk.Frame(self.app.window, padding=10, height=200)
+        self.button_frame.pack(fill='x', anchor='s', padx=20, pady=(5, 10))
+        
+        self.ready_button = ttk.Button(self.button_frame, text="準備", command=lambda: self.toggle_ready(), style='success.TButton')
+        self.ready_button.pack(pady=10, padx=10, side='left')
+        return_button = ttk.Button(self.button_frame, text="切換陣營", command=lambda: self.change_group(), style='warning.TButton')
         return_button.pack(pady=20, padx=10, side='left')
-        return_button = ttk.Button(button_frame, text="返回大廳", command=lambda: self.return_to_lobby())
+        return_button = ttk.Button(self.button_frame, text="返回大廳", command=lambda: self.return_to_lobby())
         return_button.pack(pady=20, padx=10, side='right')
         
         log_frame = ttk.Frame(self.app.window, padding=10, borderwidth=20, relief=RAISED, style='White.TFrame')
@@ -58,21 +60,48 @@ class WaitingState(WindowState):
                 self.right_group = data.get('right_group')
                 self.update_players()
 
-        except Exception as e:  
+        except Exception as e:
             print(e)
 
     def update_players(self):
         for widget in self.info_frame.winfo_children():
             widget.destroy()
-        for idx in range(max(len(self.left_group), len(self.right_group))):
-            player_frame = ttk.Frame(self.info_frame, padding=5)
-            player_frame.pack(fill='x', padx=10, pady=5)
+        
+        my_pos = 0
+        if self.app.username in self.left_group:
+            for idx, name in enumerate(self.left_group):
+                if name == self.app.username:
+                    my_pos = idx
 
-            if idx  < len(self.left_group):
-                ttk.Label(player_frame, text=f"{self.left_group[idx]}", font=("Arial", 14), anchor='w').pack(side='left')
-            if idx < len(self.right_group):
-                ttk.Label(player_frame, text=f"{self.right_group[idx]}", font=("Arial", 14), anchor='e').pack(side='right')
-    
+                player_frame = ttk.Frame(self.info_frame, padding=5)
+                player_frame.pack(fill='x', padx=10, pady=5)
+                ttk.Label(player_frame, text=f"{name}", font=("Arial", 14), anchor=('w')).pack(side='left')
+
+                def switch_player(idx):
+                    print(f"Switching player to {idx}")
+                    self.left_group[idx], self.left_group[my_pos]  = self.left_group[my_pos], self.left_group[idx]
+                    self.update_players()
+
+                if name != self.app.username:
+                    ttk.Button(player_frame, text="更換", command=lambda: switch_player(idx)).pack(side='right')
+        
+        elif self.app.username in self.right_group:
+            for idx, name in enumerate(self.right_group):
+                if name == self.app.username:
+                    my_pos = idx
+
+                player_frame = ttk.Frame(self.info_frame, padding=5)
+                player_frame.pack(fill='x', padx=10, pady=5)
+                ttk.Label(player_frame, text=f"{name}", font=("Arial", 14), anchor=('e')).pack(side='right')
+
+                def switch_player(idx):
+                    print(f"Switching player to {idx}")
+                    self.right_group[idx], self.right_group[my_pos]  = self.right_group[my_pos], self.right_group[idx]
+                    self.update_players()
+                    
+                if name != self.app.username:
+                    ttk.Button(player_frame, text="更換", command=lambda: switch_player(idx)).pack(side='left')
+
     def change_group(self):
         if self.app.username in self.left_group:
             self.left_group.remove(self.app.username)
@@ -105,8 +134,15 @@ class WaitingState(WindowState):
         
         asyncio.run_coroutine_threadsafe(handle_change_group(), self.app.loop)
     
-    def ready(self):
-        print(f"Player {self.app.username} ready")
+    def toggle_ready(self):
+        if not self.is_ready:
+            print(f"Player {self.app.username} ready")
+            self.ready_button.config(text="取消準備", style='warning.TButton')
+            self.is_ready = True
+        else:
+            print(f"Player {self.app.username} unready")
+            self.ready_button.config(text="準備", style='success.TButton')
+            self.is_ready = False
 
     def submit_chat(self, chat_text: str):
         print(f"Message from {self.app.username}: {chat_text}")

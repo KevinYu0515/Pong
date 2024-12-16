@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from ttkbootstrap import Window
 from typing import Dict
-from asyncio import AbstractEventLoop
+from asyncio import AbstractEventLoop, Condition
 
 class AppInterface(ABC):
     def __init__(self):
@@ -12,7 +12,7 @@ class AppInterface(ABC):
         self.room_id: None | int = None
         self.states: Dict[str, WindowState] 
         self.event_response: None | str = None
-        self.condition: None | AbstractEventLoop = None
+        self.condition: None | Condition = None
 
     @abstractmethod
     def clear_window(self):

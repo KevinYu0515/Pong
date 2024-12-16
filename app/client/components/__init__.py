@@ -19,6 +19,8 @@ class App(AppInterface):
         self.window = ttk.Window(themename=themename)
         self.window.title(title)
         self.window.geometry(geometry)
+        self.window.protocol("WM_DELETE_WINDOW", self.on_close)
+
         self.username = None
         self.room_id = None
         self.states = {
@@ -31,7 +33,6 @@ class App(AppInterface):
 
         self.state = self.states['Login']
         self.state.handle()
-
 
     def start_websocket_client(self):
         loop = asyncio.new_event_loop()
@@ -67,8 +68,25 @@ class App(AppInterface):
                         self.event_response = response
                         self.condition.notify()
 
+        except websockets.exceptions.ConnectionClosedOK:
+            print("Connection closed cleanly by the server.")
+        except websockets.exceptions.ConnectionClosedError as e:
+            print(f"Connection closed with error: {e}")
         except Exception as e:
             print(f"Error receiving message: {e}")
+
+    async def close_connection(self):
+        if self.websocket_client:
+            try:
+                await self.websocket_client.close()
+                print("Connection closed")
+            except Exception as e:
+                print(f"Error closing connection: {e}")
+
+    def on_close(self):
+        print("Closing application...")
+        asyncio.run_coroutine_threadsafe(self.close_connection(), self.loop)
+        self.window.destroy()
 
     def clear_window(self):
         # ttk.Style.instance = None

@@ -2,7 +2,6 @@ from  components.base import WindowState
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 import json, asyncio
-# from server.database.room_db import add_room_setting
 
 class Create_RoomState(WindowState):
     def __init__(self, app):
@@ -26,10 +25,10 @@ class Create_RoomState(WindowState):
         ttk.Radiobutton(self.lf_mode, text='混亂模式', variable=mode, value=2, command=lambda: self.toggle_player_limit(mode.get())).pack(side=ttk.LEFT, padx=10)
 
         # 人數限制
-        self.lf_player_limit = ttk.Labelframe(self.frame, text="陣營人數（上限為 5 )",bootstyle=PRIMARY, width=300, height=100, padding=20)
+        self.lf_player_limit = ttk.Labelframe(self.frame, text="陣營人數（上限為 3 )",bootstyle=PRIMARY, width=300, height=100, padding=20)
         self.lf_player_limit.pack(pady=10, padx=20)
-        player_limit = ttk.Spinbox(self.lf_player_limit, from_=1, to=5, increment=1)
-        player_limit.set(4)  # 預設人數限制
+        player_limit = ttk.Spinbox(self.lf_player_limit, from_=1, to=3, increment=1)
+        player_limit.set(1)
         player_limit.pack(fill=X, pady=5)
 
         # 時間長度

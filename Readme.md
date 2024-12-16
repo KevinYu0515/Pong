@@ -1,11 +1,11 @@
 ## 📝 TO DO LIST
 
 - Stage1 登入
-    - [ ] username 結合 UUID
+    - [x] username 結合 UUID
 - Stage2 主要大廳
     - [x] 顯示雙方陣營人數
     - [ ] room frame 的顯示問題
-    - [ ] 多個玩家同步問題
+    - [x] 多個玩家同步問題
     - [ ] 刪除房間
 - Stage3 等待畫面
     - [x] 同陣營的發言輸入框

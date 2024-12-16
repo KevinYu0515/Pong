@@ -77,7 +77,6 @@ class LobbyState(WindowState):
             
             self.create_join_buttons(room_frame, room.get('id'), json.loads(room.get('left_group')), json.loads(room.get('right_group')), room.get('player_limit'))
             self.room_frames.append(room_frame)
-        print(self.room_frames)
 
     def create_room(self):
         self.app.change_state('Create_Room')
@@ -96,7 +95,6 @@ class LobbyState(WindowState):
         count = ttk.Label(button_frame, text=f"{len(left_group)} VS. {len(right_group)}", style="info.TLabel", font=("Arial", 20))
         count.pack(pady=10, padx=30, side=ttk.LEFT, expand=True)
         
-        print(left_group, right_group)
         if len(right_group) >= player_limit:
             limit_right_label = ttk.Label(button_frame, text=f"已達人數限制", style="danger.TLabel", font=("Arial", 20))
             limit_right_label.pack(pady=10, padx=10, side=ttk.RIGHT)
