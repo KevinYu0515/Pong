@@ -1,6 +1,7 @@
 from components.base import WindowState
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
+from ttkbootstrap.dialogs import Messagebox
 import json, asyncio
 
 class WaitingState(WindowState):
@@ -8,6 +9,8 @@ class WaitingState(WindowState):
         super().__init__(app)
         self.is_ready = False
         self.position = 0
+        self.limit = 0
+        self.side = 'left'
         self.left_group = []
         self.right_group = []
         self.player_frames = []
@@ -60,6 +63,7 @@ class WaitingState(WindowState):
                 data = self.app.event_response.get('data')
                 self.left_group = data.get('left_group')
                 self.right_group = data.get('right_group')
+                self.limit = data.get('player_limit')
                 self.update_players()
 
         except Exception as e:
@@ -69,42 +73,60 @@ class WaitingState(WindowState):
         self.player_frames = []
         for widget in self.info_frame.winfo_children():
             widget.destroy()
+
+        def switch_player(idx, side):
+            print(f"Switching player to {idx}")
+            group = self.left_group if side == 'left' else self.right_group
+
+            async def handle_switch_player():
+                try:
+                    await self.app.websocket_client.send(json.dumps({
+                        "type": "switch_position",
+                        "data": {
+                            "name1": self.app.username,
+                            "name2": group[idx].get('name'),
+                            "position1": group[idx].get('position'),
+                            "position2": idx,
+                        }
+                    }))
+
+                    async with self.app.condition:
+                        await self.app.condition.wait()
+                        print("Switched player")
+                        self.update_players()
+                except Exception as e:
+                    print(e)
+
+            asyncio.run_coroutine_threadsafe(handle_switch_player(), self.app.loop)
+
         
-        if self.app.username in self.left_group:
-            for idx, name in enumerate(self.left_group):
-                if name == self.app.username:
+        if  any(player['name'] == self.app.username for player in self.left_group):
+            for idx, player in enumerate(self.left_group):
+                if player.get('name') == self.app.username:
                     self.position = idx
+                    self.side = 'left'
 
                 player_frame = ttk.Frame(self.info_frame, padding=5)
                 player_frame.pack(fill='x', padx=10, pady=5)
-                ttk.Label(player_frame, text=f"{name}", font=("Arial", 14), anchor=('w')).pack(side='left')
+                ttk.Label(player_frame, text=f"{player.get('name')}", font=("Arial", 14), anchor=('w')).pack(side='left')
 
-                def switch_player(idx):
-                    print(f"Switching player to {idx}")
-                    self.left_group[idx], self.left_group[self.position]  = self.left_group[self.position], self.left_group[idx]
-                    self.update_players()
-
-                if name != self.app.username:
-                    ttk.Button(player_frame, text="更換", command=lambda: switch_player(idx)).pack(side='right')
+                if player.get('name') != self.app.username:
+                    ttk.Button(player_frame, text="更換", command=lambda: switch_player(idx, 'left')).pack(side='right')
                 
                 self.player_frames.append(player_frame)
         
-        elif self.app.username in self.right_group:
-            for idx, name in enumerate(self.right_group):
-                if name == self.app.username:
+        elif any(player['name'] == self.app.username for player in self.right_group):
+            for idx, player in enumerate(self.right_group):
+                if player.get('name') == self.app.username:
                     self.position = idx
+                    self.side = 'right'
 
                 player_frame = ttk.Frame(self.info_frame, padding=5)
                 player_frame.pack(fill='x', padx=10, pady=5)
-                ttk.Label(player_frame, text=f"{name}", font=("Arial", 14), anchor=('e')).pack(side='right')
-
-                def switch_player(idx):
-                    print(f"Switching player to {idx}")
-                    self.right_group[idx], self.right_group[self.position]  = self.right_group[self.position], self.right_group[idx]
-                    self.update_players()
+                ttk.Label(player_frame, text=f"{player.get('name')}", font=("Arial", 14), anchor=('e')).pack(side='right')
                     
-                if name != self.app.username:
-                    ttk.Button(player_frame, text="更換", command=lambda: switch_player(idx)).pack(side='left')
+                if player.get('name') != self.app.username:
+                    ttk.Button(player_frame, text="更換", command=lambda: switch_player(idx, 'right')).pack(side='left')
 
                 self.player_frames.append(player_frame)
         
@@ -114,12 +136,26 @@ class WaitingState(WindowState):
         self.is_ready = False
 
     def change_group(self):
-        if self.app.username in self.left_group:
-            self.left_group.remove(self.app.username)
-            self.right_group.append(self.app.username)
-        elif self.app.username in self.right_group:
-            self.right_group.remove(self.app.username)
-            self.left_group.append(self.app.username)
+        def up_to_limit(group):
+            if len(group) >= self.limit:
+                Messagebox.show_info(message="該陣營已達到人數上限")
+                return True
+            return False
+        
+        if  self.side == 'left':
+            if up_to_limit(self.right_group):
+                return
+            the_chosen_player = next((player for player in self.left_group if player['name'] == self.app.username), None)
+            if the_chosen_player:
+                self.left_group.remove(the_chosen_player)
+                self.right_group.append(the_chosen_player)
+        elif self.side == 'right':
+            if up_to_limit(self.left_group):
+                return
+            the_chosen_player = next((player for player in self.right_group if player['name'] == self.app.username), None)
+            if the_chosen_player:
+                self.right_group.remove(the_chosen_player)
+                self.left_group.append(the_chosen_player)
         
         print(f"Player {self.app.username} changed group")
         
@@ -130,8 +166,8 @@ class WaitingState(WindowState):
                     "action": "change_group",
                     "data": {
                         "room_id": self.app.room_id,
-                        "left_group": self.left_group,
-                        "right_group": self.right_group
+                        "side": 'right' if self.side == 'left' else 'left',
+                        "username": self.app.username
                     }
                 }))
                 
@@ -139,7 +175,6 @@ class WaitingState(WindowState):
                     await self.app.condition.wait()
                     print("Changed group")
                     self.update_players()
-
             except Exception as e:
                 print(e)
         
@@ -149,27 +184,55 @@ class WaitingState(WindowState):
         ready_style = ttk.Style()
         ready_style.configure("Ready.TLabel", background="#5cb85c")
 
+        def check_last_ready():
+            all_players = self.left_group + self.right_group
+            return sum(1 for player in all_players if not player.get('ready')) == 1
+
+        if check_last_ready():
+            Messagebox.show_info(message="你是最後一位等待玩家，按下確認將開始遊戲")
+
+        async def handle_toggle_ready():
+            try:
+                await self.app.websocket_client.send(json.dumps({
+                    "type": "toggle_ready",
+                    "data": {
+                        "name": self.app.username,
+                        "status": self.is_ready
+                    }
+                }))
+
+                async with self.app.condition:
+                    await self.app.condition.wait()
+                    print(f"Player {self.app.username} is {'ready' if self.is_ready else 'unready'}")
+
+            except Exception as e:
+                print(e)
+
         if not self.is_ready:
-            print(f"Player {self.app.username} ready")
             self.ready_button.config(text="取消準備", style='warning.TButton')
             self.player_frames[self.position].config(style='success.TFrame')
             self.player_frames[self.position].children['!label'].config(style='Ready.TLabel')
             self.is_ready = True
         else:
-            print(f"Player {self.app.username} unready")
             self.ready_button.config(text="準備", style='success.TButton')
             self.player_frames[self.position].config(style='default.TFrame')
             self.player_frames[self.position].children['!label'].config(style='default.TLabel')
             self.is_ready = False
+        
+        asyncio.run_coroutine_threadsafe(handle_toggle_ready(), self.app.loop)
 
     def submit_chat(self, chat_text: str):
         print(f"Message from {self.app.username}: {chat_text}")
-    
+
     def return_to_lobby(self):
-        if self.app.username in self.left_group:
-            self.left_group.remove(self.app.username)
-        if self.app.username in self.right_group:
-            self.right_group.remove(self.app.username)
+        if self.side == 'left':
+            the_chosen_player = next((player for player in self.left_group if player['name'] == self.app.username), None)
+            if the_chosen_player:
+                self.left_group.remove(the_chosen_player)
+        elif self.side == 'right':
+            the_chosen_player = next((player for player in self.right_group if player['name'] == self.app.username), None)
+            if the_chosen_player:
+                self.right_group.remove(the_chosen_player)
 
         async def handle_return_to_lobby():
             try:
@@ -177,15 +240,16 @@ class WaitingState(WindowState):
                     "type": "group_action",
                     "action": "leave_room",
                     "data": {
-                        "room_id": self.app.room_id,
-                        "left_group": self.left_group,
-                        "right_group": self.right_group
+                        "room_id": None,
+                        "side": None,
+                        "username": self.app.username
                     }
                 }))
 
                 async with self.app.condition:
                     await self.app.condition.wait()
                     print("Leave room")
+                    self.app.room_id = None
                     self.app.change_state('Lobby')
 
             except Exception as e:

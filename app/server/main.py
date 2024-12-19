@@ -5,9 +5,12 @@ import os, asyncio, json
 
 HOST = os.getenv('HOST', 'localhost')
 PORT = os.getenv('PORT', '10001')
-connected_clients = set()
 
-def handle_event(event):
+connected_clients = set()
+websockets_redis = None
+group_redis = None
+
+async def handle_event(event):
     
     response, refresh = {}, True
     if event.get('type') == 'login':
@@ -25,13 +28,19 @@ def handle_event(event):
 
     if event.get('type') == 'create_room':
         response = create_room(event.get('data'))
+
     if event.get('type') == 'group_action':
         response = group_action(event.get('action'), event.get('data'))
+    if event.get('type') == 'switch_position':
+        response = switch_position(event.get('data'))
+        refresh = False
+    if event.get('type') == 'toggle_ready':
+        response = toggle_ready(event.get('data'))
+        refresh = False
     
     return [response, refresh]    
 
 async def server(websocket):
-
     print(f"Client {websocket.remote_address} connected")
     connected_clients.add(websocket)
 
@@ -40,12 +49,11 @@ async def server(websocket):
             message = await websocket.recv()
             print(f"Received message: {message}")
             event = json.loads(message)
-            response, is_refresh = handle_event(event)
+            response, is_refresh = await handle_event(event)
             await websocket.send(json.dumps(response))
             print(f"Sending response: {response}")
             if is_refresh:
                 message = json.dumps({"status": "refresh"})
-                print(websocket.remote_address[0])
                 for client in connected_clients:
                     print(f"Sending refresh to {client.remote_address}")
                     if client.remote_address != websocket.remote_address:

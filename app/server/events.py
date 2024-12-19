@@ -1,16 +1,16 @@
-import database.user_db as user_db
-import database.room_db as room_db
-import json
+import database.user as user
+import database.room as room
+import database.group as group
 
 def login(data):
     name = data.get('name')
     if not name:
         return {"status": "error", "message": "缺少使用者名稱"}
 
-    if not user_db.user_exists(name):
-        user_db.add_user(name)
-    elif not user_db.user_online(name):
-        user_db.user_login(name)
+    if not user.user_exists(name):
+        user.add_user(name)
+    elif not user.user_online(name):
+        user.user_login(name)
     else:
         return {"status": "error", "message": "使用者已登入"}
 
@@ -21,11 +21,11 @@ def logout(data):
     if not name:
         return {"status": "error", "message": "缺少使用者 name"}
 
-    user_db.user_logout(name)
+    user.user_logout(name)
     return {"status": "success", "message": "登出成功"}
 
 def get_all_rooms():
-    rooms = room_db.get_all_room_settings()
+    rooms = room.get_all_room_settings()
     return {"status": "success", "data": rooms}
 
 def create_room(data):
@@ -38,25 +38,43 @@ def create_room(data):
     if mode == -1 or player_limit == -1 or duration == -1 or winning_points == -1 or disconnection == -1:
         return {"status": "error", "message": "缺少房間設定"}
 
-    room_db.add_room_setting(mode, player_limit, duration, winning_points, disconnection)
+    room_id = room.add_room_setting(mode, player_limit, duration, winning_points, disconnection)
+    group.add_new_groups(room_id)
     return {"status": "success", "message": "房間已新增"}
 
 def get_players(data):
     room_id = data.get('room_id')
-    room = room_db.get_room_setting(room_id)
-    return {"status": "success", "data": {"left_group": json.loads(room.left_group), "right_group": json.loads(room.right_group)}}
+    room_settings = room.get_room_setting(room_id)
+    limit = room_settings.get('player_limit')
+    left_group = room_settings.get('left_group')
+    right_group = room_settings.get('right_group')
+    return {"status": "success", "data": {"player_limit": limit, "left_group": left_group, "right_group": right_group}}
 
 def group_action(action, data):
     room_id = data.get('room_id')
-    left_group = data.get('left_group')
-    right_group = data.get('right_group')
-
-    room_db.update_room_groups(room_id, json.dumps(left_group), json.dumps(right_group))
+    username = data.get('username')
+    side = data.get('side')
     message = ""
     if action == "leave_room":
         message = "成功離開房間"
     if action == "change_group":
-        message = "成功切換陣營"
+        message = "成功切換陣營"     
     if action == "join_group":
         message = "成功加入陣營"
+    user.set_user_group(username, room_id, side)
     return {"status": "success", "message": message}
+
+def switch_position(data):
+    name1 = data.get('name1')
+    position1 = data.get('position1')
+    name2 = data.get('name2')
+    position2 = data.get('position2')
+    user.set_user_position(name1, position1)
+    user.set_user_position(name2, position2)
+    return {"status": "success", "message": "成功切換位置"}
+
+def toggle_ready(data):
+    name = data.get('name')
+    status = data.get('status')
+    user.set_user_ready_status(name, status)
+    return {"status": "success", "message": "成功切換準備狀態"}

@@ -37,6 +37,7 @@ class LobbyState(WindowState):
             
             async with self.app.condition:
                 await self.app.condition.wait()
+                print(self.app.event_response.get('data'))
                 self.build_room(self.app.event_response.get('data'))
 
         except Exception as e:
@@ -75,40 +76,35 @@ class LobbyState(WindowState):
             for label in room_ui.values():
                 label.pack(pady=5, fill="x")
             
-            self.create_join_buttons(room_frame, room.get('id'), json.loads(room.get('left_group')), json.loads(room.get('right_group')), room.get('player_limit'))
+            self.create_join_buttons(room_frame, room.get('id'), room.get('left_count'), room.get('right_count'), room.get('player_limit'))
             self.room_frames.append(room_frame)
 
     def create_room(self):
         self.app.change_state('Create_Room')
     
-    def create_join_buttons(self, room_frame, id, left_group, right_group, player_limit):
+    def create_join_buttons(self, room_frame, id, left_count, right_count, player_limit):
         button_frame = ttk.Frame(room_frame)
         button_frame.pack(pady=10, fill="x")
 
-        if len(left_group) >= player_limit:
+        if left_count >= player_limit:
             limit_left_label = ttk.Label(button_frame, text=f"已達人數限制", style="danger.TLabel", font=("Arial", 20))
             limit_left_label.pack(pady=10, padx=10, side=ttk.LEFT)
         else:
-            left_button = ttk.Button(button_frame, text="加入左邊陣營", bootstyle="primary", command=lambda: self.join_group(id, "left", left_group, right_group))
+            left_button = ttk.Button(button_frame, text="加入左邊陣營", bootstyle="primary", command=lambda: self.join_group(id, "left"))
             left_button.pack(pady=10, padx=10, side=ttk.LEFT)
 
-        count = ttk.Label(button_frame, text=f"{len(left_group)} VS. {len(right_group)}", style="info.TLabel", font=("Arial", 20))
+        count = ttk.Label(button_frame, text=f"{left_count} VS. {right_count}", style="info.TLabel", font=("Arial", 20))
         count.pack(pady=10, padx=30, side=ttk.LEFT, expand=True)
         
-        if len(right_group) >= player_limit:
+        if right_count >= player_limit:
             limit_right_label = ttk.Label(button_frame, text=f"已達人數限制", style="danger.TLabel", font=("Arial", 20))
             limit_right_label.pack(pady=10, padx=10, side=ttk.RIGHT)
         else:
-            left_button = ttk.Button(button_frame, text="加入右邊陣營", bootstyle="warning", command=lambda: self.join_group(id, "right", left_group, right_group))
+            left_button = ttk.Button(button_frame, text="加入右邊陣營", bootstyle="warning", command=lambda: self.join_group(id, "right"))
             left_button.pack(pady=10, padx=10, side=ttk.RIGHT)
     
-    def join_group(self, room_id, group, left_group: list, right_group: list):
-        if group == 'left':
-            left_group.append(self.app.username)
-        elif group == 'right':
-            right_group.append(self.app.username)
-        
-        print(f"Joining {group} group...")
+    def join_group(self, room_id, side):
+        print(f"Joining {side} group...")
 
         async def handle_join_group():
             try:
@@ -117,8 +113,8 @@ class LobbyState(WindowState):
                     "action": "join_group",
                     "data": {
                         "room_id": room_id,
-                        "left_group": left_group,
-                        "right_group": right_group,
+                        "side": side,
+                        "username": self.app.username
                     }
                 }))
 

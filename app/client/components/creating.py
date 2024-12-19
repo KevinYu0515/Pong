@@ -55,7 +55,7 @@ class Create_RoomState(WindowState):
         # 提交按鈕
         ttk.Button(self.frame, text="創建房間", command=lambda: self.submit(
             mode=mode.get(),
-            player_limit= 2 if mode.get() == 0 else player_limit.get(),
+            player_limit= 1 if mode.get() == 0 else player_limit.get(),
             duration=duration_input.get(),
             winning_points=winning_points.get(),
             disconnection=disconnection_picker.get()
