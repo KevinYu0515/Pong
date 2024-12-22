@@ -45,6 +45,3 @@ class WindowState(ABC):
     @abstractmethod
     def create_ui(self):
         pass
-
-
-

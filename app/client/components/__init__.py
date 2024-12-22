@@ -60,6 +60,8 @@ class App(AppInterface):
                     print("Updating state...")
                     for widget in self.window.winfo_children():
                         widget.destroy()
+                    if 'data' in response and 'chat' in response.get('data'):
+                        self.state.chat.append(response.get('data').get('chat'))
                     self.state.handle()
                 elif response.get('status') == 'error':
                     print(f"Error: {response.get('message')}")

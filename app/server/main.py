@@ -2,13 +2,13 @@ from database import init_db
 from events import *
 import websockets, os
 import os, asyncio, json
+from collections import defaultdict
 
 HOST = os.getenv('HOST', 'localhost')
 PORT = os.getenv('PORT', '10001')
 
 connected_clients = set()
-websockets_redis = None
-group_redis = None
+groups = defaultdict(set)
 
 async def handle_event(event):
     
@@ -38,7 +38,26 @@ async def handle_event(event):
         response = toggle_ready(event.get('data'))
         refresh = False
     
-    return [response, refresh]    
+    return [response, refresh]
+
+async def add_broadcast(websocket, data):  
+    group_name = f"{data.get('room_id')}_{data.get('side')}"
+    groups[group_name].add(websocket)
+
+async def send_broadcast(websocket, data):
+    group_name = f"{data.get('room_id')}_{data.get('side')}"
+    response = {
+        "status": "refresh",
+        "data": {
+            "chat": data.get('message')
+        }
+    }
+    for client in groups[group_name]:
+        await client.send(json.dumps(response))
+
+async def remove_broadcast(websocket, data):
+    group_name = f"{data.get('room_id')}_{data.get('side')}"
+    groups[group_name].remove(websocket)
 
 async def server(websocket):
     print(f"Client {websocket.remote_address} connected")
@@ -49,7 +68,15 @@ async def server(websocket):
             message = await websocket.recv()
             print(f"Received message: {message}")
             event = json.loads(message)
+            if event.get('type') == 'chat':
+                await send_broadcast(websocket, event.get('data'))
+                continue
+
             response, is_refresh = await handle_event(event)
+            if event.get('type') == 'group_action' and event.get('action') == 'join_group':
+                await add_broadcast(websocket, event.get('data'))
+            if event.get('type') == 'group_action' and event.get('action') == 'leave_room':
+                await remove_broadcast(websocket, event.get('data'))
             await websocket.send(json.dumps(response))
             print(f"Sending response: {response}")
             if is_refresh:

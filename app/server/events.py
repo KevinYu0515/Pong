@@ -57,11 +57,13 @@ def group_action(action, data):
     message = ""
     if action == "leave_room":
         message = "成功離開房間"
+        user.set_user_group(username, None, None)
     if action == "change_group":
-        message = "成功切換陣營"     
+        message = "成功切換陣營"    
+        user.set_user_group(username, room_id, side) 
     if action == "join_group":
         message = "成功加入陣營"
-    user.set_user_group(username, room_id, side)
+        user.set_user_group(username, room_id, side)
     return {"status": "success", "message": message}
 
 def switch_position(data):

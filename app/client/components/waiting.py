@@ -14,6 +14,7 @@ class WaitingState(WindowState):
         self.left_group = []
         self.right_group = []
         self.player_frames = []
+        self.chat = []
     
     def handle(self):
         print("Displaying waiting screen...")
@@ -23,7 +24,7 @@ class WaitingState(WindowState):
     def create_ui(self):
         self.preview_frame = ttk.Frame(self.app.window, padding=10, borderwidth=20, height=200, relief=RAISED, style='White.TFrame')
         self.preview_frame.pack(fill='x', anchor='n', padx=20, pady=(10, 5))
-        
+
         self.info_frame = ttk.Frame(self.app.window, padding=10, height=200)
         self.info_frame.pack(fill='x', anchor='n', padx=20, pady=5)
         
@@ -37,17 +38,18 @@ class WaitingState(WindowState):
         return_button = ttk.Button(self.button_frame, text="返回大廳", command=lambda: self.return_to_lobby())
         return_button.pack(pady=20, padx=10, side='right')
         
-        log_frame = ttk.Frame(self.app.window, padding=10, borderwidth=20, relief=RAISED, style='White.TFrame')
-        log_frame.pack(fill='x', pady=10, padx=20)
-        log_text = ttk.Label(log_frame, text="測試用訊息...", font=("Arial", 12))
-        log_text.pack(fill='x', pady=5)
+        self.log_frame = ttk.Frame(self.app.window, padding=10, borderwidth=20, relief=RAISED, style='White.TFrame')
+        self.log_frame.pack(fill='x', pady=10, padx=20)
+        for text in self.chat:
+            log_text = ttk.Label(self.log_frame, text=text, font=("Arial", 12))
+            log_text.pack(fill='x', pady=5)
 
-        chat_frame = ttk.Frame(self.app.window, padding=10, height=200, relief=RAISED, style='default.TFrame')
-        chat_frame.pack(fill='x', anchor='s', padx=20, pady=(5, 10))
-        chat_input = ttk.Entry(chat_frame)
-        chat_input.pack(pady=10, fill='x', expand=True, anchor='w', side='left')
-        submit_button = ttk.Button(chat_frame, text="送出", command=lambda: self.submit_chat(chat_input.get()))
-        submit_button.pack(pady=10, fill='x', expand=True, anchor='e', side='right')
+        self.chat_frame = ttk.Frame(self.app.window, padding=10, height=200, relief=RAISED, style='default.TFrame')
+        self.chat_frame.pack(fill='x', anchor='s', padx=20, pady=(5, 10))
+        self.chat_input = ttk.Entry(self.chat_frame)
+        self.chat_input.pack(pady=10, fill='x', expand=True, anchor='w', side='left')
+        self.submit_button = ttk.Button(self.chat_frame, text="送出", command=lambda: self.submit_chat(self.chat_input.get()))
+        self.submit_button.pack(pady=10, fill='x', expand=True, anchor='e', side='right')
 
     async def get_players(self):
         try:
@@ -135,6 +137,18 @@ class WaitingState(WindowState):
         self.player_frames[self.position].children['!label'].config(style='default.TLabel')
         self.is_ready = False
 
+        for widget in self.preview_frame.winfo_children():
+            widget.destroy()
+        
+        self.control_bars = []
+        for player in self.left_group:
+            control_bar_style = ttk.Style()
+            custom_color = "#4CAF50"
+            control_bar_style.configure('White.TFrame', background=custom_color)
+            control_bar = ttk.Frame(self.preview_frame, width=10, height=100, style='White.TFrame')
+            control_bar.pack(side='left', anchor='w', padx=10, pady=5)
+            self.control_bars.append(control_bar)
+
     def change_group(self):
         def up_to_limit(group):
             if len(group) >= self.limit:
@@ -189,7 +203,7 @@ class WaitingState(WindowState):
             return sum(1 for player in all_players if not player.get('ready')) == 1
 
         if check_last_ready():
-            Messagebox.show_info(message="你是最後一位等待玩家，按下確認將開始遊戲")
+            Messagebox.show_info(message="你是最後一位準備玩家，按下確認將開始遊戲")
 
         async def handle_toggle_ready():
             try:
@@ -222,7 +236,24 @@ class WaitingState(WindowState):
         asyncio.run_coroutine_threadsafe(handle_toggle_ready(), self.app.loop)
 
     def submit_chat(self, chat_text: str):
+
         print(f"Message from {self.app.username}: {chat_text}")
+        async def handle_chat():
+            try:
+                await self.app.websocket_client.send(json.dumps({
+                    "type": "chat",
+                    "data": {
+                        "room_id": self.app.room_id,
+                        "side": self.side,
+                        "message": f"{self.app.username}: {chat_text}", 
+                    }
+                })) 
+
+            except Exception as e:
+                print(e)
+
+        self.chat_input.delete(0, 'end')
+        asyncio.run_coroutine_threadsafe(handle_chat(), self.app.loop)
 
     def return_to_lobby(self):
         if self.side == 'left':
@@ -240,8 +271,8 @@ class WaitingState(WindowState):
                     "type": "group_action",
                     "action": "leave_room",
                     "data": {
-                        "room_id": None,
-                        "side": None,
+                        "room_id": self.app.room_id,
+                        "side": self.side,
                         "username": self.app.username
                     }
                 }))
