@@ -80,3 +80,13 @@ def toggle_ready(data):
     status = data.get('status')
     user.set_user_ready_status(name, status)
     return {"status": "success", "message": "成功切換準備狀態"}
+
+def start_game(data):
+    room_id = data.get('room_id')
+    room_settings = room.get_room_setting(room_id)
+    player_limit = room_settings.get('player_limit')
+    left_group = room_settings.get('left_group')
+    right_group = room_settings.get('right_group')
+    if sum(1 for player in left_group if player.get('ready')) < player_limit or sum(1 for player in right_group if player.get('ready')) < player_limit:
+        return {"status": "error", "message": "陣營人數不足"}
+    return {"status": "success", "message": "遊戲開始"}

@@ -13,6 +13,7 @@ class AppInterface(ABC):
         self.states: Dict[str, WindowState] 
         self.event_response: None | str = None
         self.condition: None | Condition = None
+        self.is_start: bool = False
 
     @abstractmethod
     def clear_window(self):
@@ -28,6 +29,10 @@ class AppInterface(ABC):
 
     @abstractmethod
     def set_room_id(self, room_id: str):
+        pass
+
+    @abstractmethod
+    def set_start_game(self, is_start: bool):
         pass
     
     @abstractmethod

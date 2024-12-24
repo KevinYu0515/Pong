@@ -195,15 +195,14 @@ class WaitingState(WindowState):
         asyncio.run_coroutine_threadsafe(handle_change_group(), self.app.loop)
     
     def toggle_ready(self):
+        
         ready_style = ttk.Style()
         ready_style.configure("Ready.TLabel", background="#5cb85c")
 
         def check_last_ready():
             all_players = self.left_group + self.right_group
+            print(sum(1 for player in all_players if not player.get('ready')), all_players)
             return sum(1 for player in all_players if not player.get('ready')) == 1
-
-        if check_last_ready():
-            Messagebox.show_info(message="你是最後一位準備玩家，按下確認將開始遊戲")
 
         async def handle_toggle_ready():
             try:
@@ -211,7 +210,7 @@ class WaitingState(WindowState):
                     "type": "toggle_ready",
                     "data": {
                         "name": self.app.username,
-                        "status": self.is_ready
+                        "status": self.is_ready,
                     }
                 }))
 
@@ -222,18 +221,46 @@ class WaitingState(WindowState):
             except Exception as e:
                 print(e)
 
-        if not self.is_ready:
+        async def start_game():
+            try:
+                await self.app.websocket_client.send(json.dumps({
+                    "type": "start_game",
+                    "data": {
+                        "room_id": self.app.room_id
+                    }
+                }))
+
+                async with self.app.condition:
+                    await self.app.condition.wait()
+                    print("Game started")
+                    self.app.change_state('Game')
+            except Exception as e:
+                print(e)
+
+        if check_last_ready():
+            result = Messagebox.yesno(message="你是最後一位準備玩家，按下確認將開始遊戲")
+            self.app.set_start_game(result == 'Yes')
+        else:
+            if not self.is_ready:
+                self.ready_button.config(text="取消準備", style='warning.TButton')
+                self.player_frames[self.position].config(style='success.TFrame')
+                self.player_frames[self.position].children['!label'].config(style='Ready.TLabel')
+                self.is_ready = True
+            else:
+                self.ready_button.config(text="準備", style='success.TButton')
+                self.player_frames[self.position].config(style='default.TFrame')
+                self.player_frames[self.position].children['!label'].config(style='default.TLabel')
+                self.is_ready = False
+            asyncio.run_coroutine_threadsafe(handle_toggle_ready(), self.app.loop)
+        
+        print(self.app.is_start)
+        if self.app.is_start:
             self.ready_button.config(text="取消準備", style='warning.TButton')
             self.player_frames[self.position].config(style='success.TFrame')
             self.player_frames[self.position].children['!label'].config(style='Ready.TLabel')
             self.is_ready = True
-        else:
-            self.ready_button.config(text="準備", style='success.TButton')
-            self.player_frames[self.position].config(style='default.TFrame')
-            self.player_frames[self.position].children['!label'].config(style='default.TLabel')
-            self.is_ready = False
-        
-        asyncio.run_coroutine_threadsafe(handle_toggle_ready(), self.app.loop)
+            asyncio.run_coroutine_threadsafe(handle_toggle_ready(), self.app.loop)
+            asyncio.run_coroutine_threadsafe(start_game(), self.app.loop)
 
     def submit_chat(self, chat_text: str):
 

@@ -1,165 +1,88 @@
 import pygame
-pygame.init()
-
+import socket
+import json, threading
+from game.item import *
 
 WIDTH, HEIGHT = 700, 500
-WIN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Pong")
-
 FPS = 60
-
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-
 PADDLE_WIDTH, PADDLE_HEIGHT = 20, 100
 BALL_RADIUS = 7
-
-SCORE_FONT = pygame.font.SysFont("comicsans", 50)
 WINNING_SCORE = 10
+clock = pygame.time.Clock()
 
-class Paddle:
-    COLOR = WHITE
-    VEL = 4
+class Game_Client():
+    def __init__(self, client_port, server_address, left_players, right_players):
+        pygame.init()
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.client.settimeout(1)
+        self.client_address = ("0.0.0.0", client_port)
+        self.server_listener = SocketThread(self.client_address, self, threading.Lock())
+        self.server_listener.start()
+        self.server_address = server_address
 
-    def __init__(self, x, y, width, height):
-        self.x = self.original_x = x
-        self.y = self.original_y = y
-        self.width = width
-        self.height = height
+        self.is_running = True
+        self.SCORE_FONT = pygame.font.SysFont("comicsans", 50)
+        self.win = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.ball = Ball(WIDTH // 2, HEIGHT // 2, BALL_RADIUS)
+        self.left_score = 0
+        self.right_score = 0
+        self.player_action = []
+        pygame.display.set_caption("Pong Client")
+        self.left_paddle: list[Paddle] = []
+        self.right_paddle: list[Paddle] = []
 
-    def draw(self, win):
-        pygame.draw.rect(
-            win, self.COLOR, (self.x, self.y, self.width, self.height))
+        for player in left_players:
+            self.left_paddle.append(Paddle(10, HEIGHT// 2 - PADDLE_HEIGHT // 2, PADDLE_WIDTH, PADDLE_HEIGHT))
+        
+        for player in right_players:
+            self.right_paddle.append(Paddle(WIDTH - 10 - PADDLE_WIDTH, HEIGHT // 2 - PADDLE_HEIGHT//2, PADDLE_WIDTH, PADDLE_HEIGHT))
 
-    def move(self, up=True):
-        if up:
-            self.y -= self.VEL
-        else:
-            self.y += self.VEL
+    def run(self):
+        while self.is_running:
+            clock.tick(FPS)
+            self.poll_events()
+            self.update()
+            self.draw(self.win)
+        pygame.quit()
 
-    def reset(self):
-        self.x = self.original_x
-        self.y = self.original_y
-
-class Ball:
-    MAX_VEL = 5
-    COLOR = WHITE
-
-    def __init__(self, x, y, radius):
-        self.x = self.original_x = x
-        self.y = self.original_y = y
-        self.radius = radius
-        self.x_vel = self.MAX_VEL
-        self.y_vel = 0
-
-    def draw(self, win):
-        pygame.draw.circle(win, self.COLOR, (self.x, self.y), self.radius)
-
-    def move(self):
-        self.x += self.x_vel
-        self.y += self.y_vel
-
-    def reset(self):
-        self.x = self.original_x
-        self.y = self.original_y
-        self.y_vel = 0
-        self.x_vel *= -1
-
-def draw(win, paddles, ball, left_score, right_score):
-    win.fill(BLACK)
-
-    left_score_text = SCORE_FONT.render(f"{left_score}", 1, WHITE)
-    right_score_text = SCORE_FONT.render(f"{right_score}", 1, WHITE)
-    win.blit(left_score_text, (WIDTH//4 - left_score_text.get_width()//2, 20))
-    win.blit(right_score_text, (WIDTH * (3/4) -
-                                right_score_text.get_width()//2, 20))
-
-    for paddle in paddles:
-        paddle.draw(win)
-
-    for i in range(10, HEIGHT, HEIGHT//20):
-        if i % 2 == 1:
-            continue
-        pygame.draw.rect(win, WHITE, (WIDTH//2 - 5, i, 10, HEIGHT//20))
-
-    ball.draw(win)
-    pygame.display.update()
-
-def handle_collision(ball, left_paddle, right_paddle):
-    if ball.y + ball.radius >= HEIGHT:
-        ball.y_vel *= -1
-    elif ball.y - ball.radius <= 0:
-        ball.y_vel *= -1
-
-    if ball.x_vel < 0:
-        if ball.y >= left_paddle.y and ball.y <= left_paddle.y + left_paddle.height:
-            if ball.x - ball.radius <= left_paddle.x + left_paddle.width:
-                ball.x_vel *= -1
-
-                middle_y = left_paddle.y + left_paddle.height / 2
-                difference_in_y = middle_y - ball.y
-                reduction_factor = (left_paddle.height / 2) / ball.MAX_VEL
-                y_vel = difference_in_y / reduction_factor
-                ball.y_vel = -1 * y_vel
-
-    else:
-        if ball.y >= right_paddle.y and ball.y <= right_paddle.y + right_paddle.height:
-            if ball.x + ball.radius >= right_paddle.x:
-                ball.x_vel *= -1
-
-                middle_y = right_paddle.y + right_paddle.height / 2
-                difference_in_y = middle_y - ball.y
-                reduction_factor = (right_paddle.height / 2) / ball.MAX_VEL
-                y_vel = difference_in_y / reduction_factor
-                ball.y_vel = -1 * y_vel
-
-
-def handle_paddle_movement(keys, left_paddle, right_paddle):
-    if keys[pygame.K_w] and left_paddle.y - left_paddle.VEL >= 0:
-        left_paddle.move(up=True)
-    if keys[pygame.K_s] and left_paddle.y + left_paddle.VEL + left_paddle.height <= HEIGHT:
-        left_paddle.move(up=False)
-
-    if keys[pygame.K_UP] and right_paddle.y - right_paddle.VEL >= 0:
-        right_paddle.move(up=True)
-    if keys[pygame.K_DOWN] and right_paddle.y + right_paddle.VEL + right_paddle.height <= HEIGHT:
-        right_paddle.move(up=False)
-
-
-def main():
-    run = True
-    clock = pygame.time.Clock()
-
-    left_paddle = Paddle(10, HEIGHT//2 - PADDLE_HEIGHT //
-                         2, PADDLE_WIDTH, PADDLE_HEIGHT)
-    right_paddle = Paddle(WIDTH - 10 - PADDLE_WIDTH, HEIGHT //
-                          2 - PADDLE_HEIGHT//2, PADDLE_WIDTH, PADDLE_HEIGHT)
-    ball = Ball(WIDTH // 2, HEIGHT // 2, BALL_RADIUS)
-
-    left_score = 0
-    right_score = 0
-
-    while run:
-        clock.tick(FPS)
-        draw(WIN, [left_paddle, right_paddle], ball, left_score, right_score)
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                run = False
-                break
-
+    def poll_events(self):
+        events = pygame.event.get()
         keys = pygame.key.get_pressed()
-        handle_paddle_movement(keys, left_paddle, right_paddle)
+        
+        for event in events:
+            if event.type == pygame.QUIT:
+                self.is_running = False
+                return
+            
+        if keys[pygame.K_w]:
+            self.player_action.append("MOVE_LEFT_UP".encode())
+        if keys[pygame.K_s]:
+            self.player_action.append("MOVE_LEFT_DOWN".encode())
+        if keys[pygame.K_UP]:
+            self.player_action.append("MOVE_RIGHT_UP".encode())
+        if keys[pygame.K_DOWN]:
+            self.player_action.append("MOVE_RIGHT_DOWN".encode())
 
-        ball.move()
-        handle_collision(ball, left_paddle, right_paddle)
+    def update(self): 
+        if len(self.player_action):
+            self.client.sendto(self.player_action, self.server_address)
+            self.player_action = []
 
-        if ball.x < 0:
+    def draw(self):
+        self.win.fill(BLACK)
+        left_score_text = self.SCORE_FONT.render(f"{self.left_score}", 1, WHITE)
+        right_score_text = self.SCORE_FONT.render(f"{self.right_score}", 1, WHITE)
+        self.win.blit(left_score_text, (WIDTH//4 - left_score_text.get_width()//2, 20))
+        self.win.blit(right_score_text, (WIDTH * (3/4) - right_score_text.get_width()//2, 20))
+
+        if self.ball.x < 0:
             right_score += 1
-            ball.reset()
-        elif ball.x > WIDTH:
+            self.ball.reset()
+        elif self.ball.x > WIDTH:
             left_score += 1
-            ball.reset()
+            self.ball.reset()
 
         won = False
         if left_score >= WINNING_SCORE:
@@ -170,19 +93,50 @@ def main():
             win_text = "Right Player Won!"
 
         if won:
-            text = SCORE_FONT.render(win_text, 1, WHITE)
-            WIN.blit(text, (WIDTH//2 - text.get_width() //
+            text = self.SCORE_FONT.render(win_text, 1, WHITE)
+            self.win.blit(text, (WIDTH//2 - text.get_width() //
                             2, HEIGHT//2 - text.get_height()//2))
             pygame.display.update()
             pygame.time.delay(5000)
-            ball.reset()
-            left_paddle.reset()
-            right_paddle.reset()
+            self.ball.reset()
+            for paddle in self.left_paddle + self.right_paddle:
+                paddle.reset()
             left_score = 0
             right_score = 0
+            self.is_running = False
 
-    pygame.quit()
+        for paddle in self.left_paddle + self.right_paddle:
+            paddle.draw(self.win)
 
+        for i in range(10, HEIGHT, HEIGHT//20):
+            if i % 2 == 1:
+                continue
+            pygame.draw.rect(self.win, WHITE, (WIDTH//2 - 5, i, 10, HEIGHT//20))
 
-if __name__ == '__main__':
-    main()
+        self.ball.draw(self.win)
+        pygame.display.update()
+
+class SocketThread(threading.Thread):
+    def __init__(self, addr, client, lock):
+        threading.Thread.__init__(self)
+        self.client: Game_Client = client
+        self.lock = lock
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.bind(addr)
+
+    def run(self):
+        while True:
+            try:
+                data = self.socket.recvfrom(1024)
+                game_state = json.loads(data.decode())
+                print(game_state)
+                self.client.ball.x, self.client.ball.y = game_state['ball']
+                self.client.left_paddle = game_state['left_paddles']
+                self.client.right_paddle = game_state['right_paddles']
+                self.client.left_score = game_state['left_score']
+                self.client.right_score = game_state['right_score']
+            except socket.timeout:
+                print("[INFO] Timeout waiting for server response.")
+            except Exception as e:
+                print(f"[ERROR] {e}")
+                break

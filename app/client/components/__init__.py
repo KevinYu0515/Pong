@@ -6,6 +6,8 @@ from .creating import Create_RoomState
 from .waiting import WaitingState
 from .ending import EndingState
 import asyncio, threading, websockets, json
+from game.app import Game_Client
+import random
 
 SERVER_URL = "ws://localhost:10001"
 
@@ -20,6 +22,7 @@ class App(AppInterface):
         self.window.title(title)
         self.window.geometry(geometry)
         self.window.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.is_start = False
 
         self.username = None
         self.room_id = None
@@ -56,15 +59,25 @@ class App(AppInterface):
             while True:
                 response = json.loads(await self.websocket_client.recv())
                 print(f"Received message: {response}")
-                if response.get('status') == 'refresh':
+                if response.get('status') == 'start_game':
+                    server_address = response.get('data').get('server_address')
+                    left_players = response.get('data').get('left_players')
+                    right_players = response.get('data').get('right_players')
+                    new_game = Game_Client(random.randint(1000, 6000), server_address, left_players, right_players)
+
+                elif response.get('status') == 'refresh':
                     print("Updating state...")
                     for widget in self.window.winfo_children():
                         widget.destroy()
                     if 'data' in response and 'chat' in response.get('data'):
                         self.state.chat.append(response.get('data').get('chat'))
                     self.state.handle()
+
                 elif response.get('status') == 'error':
-                    print(f"Error: {response.get('message')}")
+                    async with self.condition:
+                        self.event_response = response
+                        self.condition.notify()
+
                 elif response.get('status') == 'success':
                     async with self.condition:
                         self.event_response = response
@@ -109,6 +122,10 @@ class App(AppInterface):
     def set_room_id(self, room_id):
         self.room_id = room_id
         print(f"Room ID set to: {self.room_id}")
+    
+    def set_start_game(self, is_start):
+        self.is_start = is_start
+        print(f"Game start: {self.is_start}")
 
     def run(self):
         self.window.mainloop()

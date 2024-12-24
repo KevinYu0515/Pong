@@ -1,14 +1,18 @@
 from database import init_db
 from events import *
-import websockets, os
+import websockets, os, threading
 import os, asyncio, json
 from collections import defaultdict
+from database.room import get_room_setting
+from game.app import Game_Server
+import socket
 
 HOST = os.getenv('HOST', 'localhost')
 PORT = os.getenv('PORT', '10001')
 
 connected_clients = set()
 groups = defaultdict(set)
+games = set()
 
 async def handle_event(event):
     
@@ -36,6 +40,9 @@ async def handle_event(event):
         refresh = False
     if event.get('type') == 'toggle_ready':
         response = toggle_ready(event.get('data'))
+        refresh = False
+    if event.get('type') == 'start_game':
+        response = start_game(event.get('data'))
         refresh = False
     
     return [response, refresh]
@@ -89,6 +96,22 @@ async def server(websocket):
                         except websockets.exceptions.ConnectionClosed:
                             connected_clients.remove(client)
                             break
+            if event.get('type') == 'start_game' and response.get('status') == 'success':
+                left_client_sockets =  groups[f"{event.get('data').get('room_id')}_left"]
+                right_client_sockets = groups[f"{event.get('data').get('room_id')}_right"]
+                new_game = Game_Server(left_client_sockets, right_client_sockets)
+                games.add(new_game)
+
+                room = get_room_setting(event.get('data').get('room_id'))
+                for player_socket in left_client_sockets.union(right_client_sockets):
+                    await player_socket.send(json.dumps({
+                                                "status": "start_game", 
+                                                "data": {
+                                                    "server_address": (HOST, 5555),
+                                                    "left_players": room.get('left_group'),
+                                                    "right_players": room.get('right_group')
+                                                }}
+                                            ))
 
     except websockets.exceptions.ConnectionClosedOK:
         print("Client disconnected")

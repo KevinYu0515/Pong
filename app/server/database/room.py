@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, create_engine, func
+from sqlalchemy import Column, Integer, create_engine, func, String, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 from .group import GroupDB
 from .user import UserDB
 from . import Base, Session

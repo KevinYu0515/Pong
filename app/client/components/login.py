@@ -1,6 +1,7 @@
 from components.base import WindowState
 import ttkbootstrap as ttk
 import json, asyncio, threading
+from .error import ErrorState
 
 class LoginState(WindowState):
     def __init__(self, app):
@@ -42,9 +43,14 @@ class LoginState(WindowState):
                 
                 async with self.app.condition:
                     await self.app.condition.wait()
-                    print(f"Logged in as {username}")
-                    self.app.set_username(username)
-                    self.app.change_state('Lobby')
+                    response = self.app.event_response
+                    if response.get('status') == 'error':
+                        ErrorState(response.get('message'), "Login Error").alert(self.app.window)
+                        self.username_entry.delete(0, 'end')
+                    else:
+                        print(f"Logged in as {username}")
+                        self.app.set_username(username)
+                        self.app.change_state('Lobby')
                     
 
             except Exception as e:
