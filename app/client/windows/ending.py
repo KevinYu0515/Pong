@@ -1,4 +1,4 @@
-from components.base import WindowState
+from .base import WindowState
 
 class EndingState(WindowState):
     def __init__(self, app):

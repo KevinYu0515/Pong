@@ -14,7 +14,7 @@ class RoomSettings(Base):
     duration = Column(Integer, nullable=False)
     winning_points = Column(Integer, nullable=False)
     disconnection = Column(Integer, nullable=False)
-
+    
     def __repr__(self):
         return f"<RoomSettings(mode={self.mode}, player_limit={self.player_limit}, " \
                f"duration={self.duration}, winning_points={self.winning_points}, disconnection={self.disconnection})>"

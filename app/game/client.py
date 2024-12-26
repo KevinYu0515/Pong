@@ -1,7 +1,7 @@
 import threading, socket, json, argparse
 import pygame
-from items import *
-from constants import *
+from .items import *
+from .constants import *
 
 clock = pygame.time.Clock()
 
@@ -29,11 +29,11 @@ class Game_Client():
         self.my_paddles = my_paddles
 
         for paddle in left_paddles:
-            start_x = 10 + paddle.get('position') * 100
+            start_x = 10 + int(paddle.get('position')) * 100
             self.left_paddles.append(Paddle(start_x, PADDLE_HEIGHT // 2, PADDLE_WIDTH, PADDLE_HEIGHT))
         
         for paddle in right_paddles:
-            start_x = SCREEN_WIDTH - 10 - PADDLE_WIDTH - paddle.get('position') * 100
+            start_x = SCREEN_WIDTH - 10 - PADDLE_WIDTH - int(paddle.get('position')) * 100
             self.right_paddles.append(Paddle(start_x, PADDLE_HEIGHT // 2, PADDLE_WIDTH, PADDLE_HEIGHT))
 
         # Initialize pygame
@@ -64,6 +64,8 @@ class Game_Client():
                     paddle.reset()
                 self.left_score = 0
                 self.right_score = 0
+
+        pygame.quit()
     
     def senTo(self):
         side, idx = self.my_paddles.get('side'), self.my_paddles.get('idx')

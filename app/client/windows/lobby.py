@@ -1,6 +1,6 @@
-from components.base import WindowState
+from .base import WindowState
 from ttkbootstrap.constants import *
-from constants import mode_list, disconnection_list
+from ..constants import mode_list, disconnection_list
 import ttkbootstrap as ttk
 import json, asyncio
     
@@ -90,7 +90,7 @@ class LobbyState(WindowState):
             limit_left_label = ttk.Label(button_frame, text=f"已達人數限制", style="danger.TLabel", font=("Arial", 20))
             limit_left_label.pack(pady=10, padx=10, side=ttk.LEFT)
         else:
-            left_button = ttk.Button(button_frame, text="加入左邊陣營", bootstyle="primary", command=lambda: self.join_group(id, "left"))
+            left_button = ttk.Button(button_frame, text="加入左邊陣營", bootstyle="primary", command=lambda: join_group(id, "left"))
             left_button.pack(pady=10, padx=10, side=ttk.LEFT)
 
         count = ttk.Label(button_frame, text=f"{left_count} VS. {right_count}", style="info.TLabel", font=("Arial", 20))
@@ -100,33 +100,34 @@ class LobbyState(WindowState):
             limit_right_label = ttk.Label(button_frame, text=f"已達人數限制", style="danger.TLabel", font=("Arial", 20))
             limit_right_label.pack(pady=10, padx=10, side=ttk.RIGHT)
         else:
-            left_button = ttk.Button(button_frame, text="加入右邊陣營", bootstyle="warning", command=lambda: self.join_group(id, "right"))
+            left_button = ttk.Button(button_frame, text="加入右邊陣營", bootstyle="warning", command=lambda: join_group(id, "right"))
             left_button.pack(pady=10, padx=10, side=ttk.RIGHT)
     
-    def join_group(self, room_id, side):
-        print(f"Joining {side} group...")
+        def join_group(room_id, side):
+            print(f"Joining {side} group...")
 
-        async def handle_join_group():
-            try:
-                await self.app.websocket_client.send(json.dumps({
-                    "type": "group_action",
-                    "action": "join_group",
-                    "data": {
-                        "room_id": room_id,
-                        "side": side,
-                        "username": self.app.username
-                    }
-                }))
+            async def handle_join_group():
+                try:
+                    await self.app.websocket_client.send(json.dumps({
+                        "type": "group_action",
+                        "action": "join_group",
+                        "data": {
+                            "room_id": room_id,
+                            "side": side,
+                            "username": self.app.username,
+                            "position": right_count + 1 if side == 'right' else left_count + 1
+                        }
+                    }))
 
-                async with self.app.condition:
-                    await self.app.condition.wait()
-                    print("Joined group")
-                    self.app.set_room_id(room_id)
-                    self.app.change_state('Waiting')
- 
-            except Exception as e:
-                print(e)
-        asyncio.run_coroutine_threadsafe(handle_join_group(), self.app.loop)
+                    async with self.app.condition:
+                        await self.app.condition.wait()
+                        print("Joined group")
+                        self.app.set_room_id(room_id)
+                        self.app.change_state('Waiting')
+    
+                except Exception as e:
+                    print(e)
+            asyncio.run_coroutine_threadsafe(handle_join_group(), self.app.loop)
 
     def on_logout(self):
         print("Logging out...")

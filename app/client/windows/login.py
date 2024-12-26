@@ -1,4 +1,4 @@
-from components.base import WindowState
+from .base import WindowState
 import ttkbootstrap as ttk
 import json, asyncio, threading
 from .error import ErrorState

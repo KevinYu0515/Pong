@@ -71,11 +71,12 @@ def set_user_color(name, color):
     user.color = color
     session.commit()
 
-def set_user_group(name, room_id, side):
+def set_user_group(name, room_id, side, position):
     session = Session()
     user = session.query(UserDB).filter_by(name=name).first()
     user.room_id = room_id
     user.side = side
+    user.position = position
     session.commit()
 
 def set_user_position(name, position):

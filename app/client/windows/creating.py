@@ -1,4 +1,4 @@
-from  components.base import WindowState
+from  .base import WindowState
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 import json, asyncio

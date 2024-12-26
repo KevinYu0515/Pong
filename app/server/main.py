@@ -1,11 +1,11 @@
-from database import init_db
-from events import *
-import websockets, os, threading
-import os, asyncio, json
+from .database import init_db
+from .events import *
+import websockets, os
+import os, asyncio, json, threading
 from collections import defaultdict
-from database.room import get_room_setting
-from game.server import Game_Server
-from utils import *
+from .database.room import get_room_setting
+from ..utils import *
+from ..game import Game_Server 
 
 HOST = os.getenv('HOST', 'localhost')
 PORT = os.getenv('PORT', '10001')
@@ -102,13 +102,16 @@ async def server(websocket):
             if event.get('type') == 'start_game' and response.get('status') == 'success':
                 left_client_sockets =  groups[f"{event.get('data').get('room_id')}_left"]
                 right_client_sockets = groups[f"{event.get('data').get('room_id')}_right"]
-                left_client_address = [get_address_from_websockets(socket) for socket in left_client_sockets]
-                right_client_address = [get_address_from_websockets(socket) for socket in right_client_sockets]
+                left_client_address = [get_remote_address_from_websockets(socket) for socket in left_client_sockets]
+                right_client_address = [get_remote_address_from_websockets(socket) for socket in right_client_sockets]
                 game_server_port = get_free_port()
+                game_server_address = ('0.0.0.0', game_server_port)
                 room = get_room_setting(event.get('data').get('room_id'))
-
-                new_game = Game_Server(game_server_port, left_client_address, right_client_address, room.get('left_group'), room.get('right_group'))
+                
+                print(left_client_address, right_client_address, game_server_address)
+                new_game = Game_Server(game_server_address, left_client_address, right_client_address, room.get('left_group'), room.get('right_group'))
                 games.add(new_game)
+                threading.Thread(target=new_game.run).start()
 
                 for player_socket in left_client_sockets.union(right_client_sockets):
                     await player_socket.send(json.dumps({

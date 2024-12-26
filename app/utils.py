@@ -11,6 +11,14 @@ def get_free_port():
             except OSError:
                 continue
 
-def get_address_from_websockets(websocket):
+def get_remote_address_from_websockets(websocket):
     ip, port, *_ = websocket.remote_address
+    if ip == '::1':
+        ip = '127.0.0.1'
+    return (ip, port)
+
+def get_local_address_from_websockets(websocket):
+    ip, port, *_ = websocket.local_address
+    if ip == '::1':
+        ip = '127.0.0.1'
     return (ip, port)

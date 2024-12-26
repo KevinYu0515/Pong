@@ -1,6 +1,4 @@
-import database.user as user
-import database.room as room
-import database.group as group
+from .database import user, room, group
 
 def login(data):
     name = data.get('name')
@@ -54,16 +52,18 @@ def group_action(action, data):
     room_id = data.get('room_id')
     username = data.get('username')
     side = data.get('side')
+    position = data.get('position')
+
     message = ""
     if action == "leave_room":
         message = "成功離開房間"
-        user.set_user_group(username, None, None)
+        user.set_user_group(username, None, None, None)
     if action == "change_group":
         message = "成功切換陣營"    
-        user.set_user_group(username, room_id, side) 
+        user.set_user_group(username, room_id, side, position) 
     if action == "join_group":
         message = "成功加入陣營"
-        user.set_user_group(username, room_id, side)
+        user.set_user_group(username, room_id, side, position)
     return {"status": "success", "message": message}
 
 def switch_position(data):

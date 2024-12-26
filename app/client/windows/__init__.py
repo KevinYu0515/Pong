@@ -6,8 +6,8 @@ from .creating import Create_RoomState
 from .waiting import WaitingState
 from .ending import EndingState
 import asyncio, threading, websockets, json
-from game.client import Game_Client
-from utils import *
+from ...game import Game_Client
+from ...utils import *
 
 SERVER_URL = "ws://localhost:10001"
 
@@ -60,11 +60,13 @@ class App(AppInterface):
                 response = json.loads(await self.websocket_client.recv())
                 print(f"Received message: {response}")
                 if response.get('status') == 'start_game':
-                    game_client_address = get_address_from_websockets(self.websocket_client)
-                    game_server_address = response.get('data').get('server_address')
+                    game_client_address = get_local_address_from_websockets(self.websocket_client)
+                    game_server_address = (response.get('data').get('server_address')[0], response.get('data').get('server_address')[1])
                     left_players = response.get('data').get('left_players')
                     right_players = response.get('data').get('right_players')
-                    new_game = Game_Client(game_client_address, game_server_address, left_players, right_players, {"side": self.window.side, "idx": self.window.position})
+                    print(game_client_address, game_server_address)
+                    new_game = Game_Client(game_client_address, game_server_address, left_players, right_players, {"side": self.state.side, "idx": self.state.position - 1})
+                    new_game.run()
 
                 elif response.get('status') == 'refresh':
                     print("Updating state...")

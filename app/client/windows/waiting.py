@@ -1,4 +1,4 @@
-from components.base import WindowState
+from .base import WindowState
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from ttkbootstrap.dialogs import Messagebox
@@ -181,7 +181,8 @@ class WaitingState(WindowState):
                     "data": {
                         "room_id": self.app.room_id,
                         "side": 'right' if self.side == 'left' else 'left',
-                        "username": self.app.username
+                        "username": self.app.username,
+                        'position': len(self.left_group) + 1 if self.side == 'right' else len(self.right_group) + 1
                     }
                 }))
                 
@@ -253,7 +254,6 @@ class WaitingState(WindowState):
                 self.is_ready = False
             asyncio.run_coroutine_threadsafe(handle_toggle_ready(), self.app.loop)
         
-        print(self.app.is_start)
         if self.app.is_start:
             self.ready_button.config(text="取消準備", style='warning.TButton')
             self.player_frames[self.position].config(style='success.TFrame')
@@ -300,7 +300,8 @@ class WaitingState(WindowState):
                     "data": {
                         "room_id": self.app.room_id,
                         "side": self.side,
-                        "username": self.app.username
+                        "username": self.app.username,
+                        "position": None
                     }
                 }))
 

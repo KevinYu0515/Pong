@@ -1,6 +1,5 @@
 import pygame
-
-WHITE = (255, 255, 255)
+from .constants import *
 
 class Paddle:
     COLOR = WHITE

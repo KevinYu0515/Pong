@@ -1,8 +1,8 @@
 import socket
-from items import *
+from .items import *
 import threading, json, time
 import argparse
-from constants import *
+from .constants import *
 
 class Game_Server():
     def __init__(self, addr, left_client_address, right_client_address, left_paddles, right_paddles, winning_points=10):
@@ -30,11 +30,11 @@ class Game_Server():
         }
 
         for paddle in left_paddles:
-            start_x = 10 + paddle.get('position') * 100
+            start_x = 10 + int(paddle.get('position')) * 100
             self.data.get('left_paddles').append({"x": start_x, "y": PADDLE_HEIGHT // 2, "width": PADDLE_WIDTH, "height": PADDLE_HEIGHT})
         
         for paddle in right_paddles:
-            start_x = SCREEN_WIDTH - 10 - PADDLE_WIDTH - paddle.get('position') * 100
+            start_x = SCREEN_WIDTH - 10 - PADDLE_WIDTH - int(paddle.get('position')) * 100
             self.data.get('right_paddles').append({"x": start_x, "y": PADDLE_HEIGHT // 2, "width": PADDLE_WIDTH, "height": PADDLE_HEIGHT})
 
         self.is_running = True
