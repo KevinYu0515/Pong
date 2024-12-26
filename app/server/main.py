@@ -4,8 +4,8 @@ import websockets, os, threading
 import os, asyncio, json
 from collections import defaultdict
 from database.room import get_room_setting
-from game.app import Game_Server
-import socket
+from game.server import Game_Server
+from utils import *
 
 HOST = os.getenv('HOST', 'localhost')
 PORT = os.getenv('PORT', '10001')
@@ -80,12 +80,14 @@ async def server(websocket):
                 continue
 
             response, is_refresh = await handle_event(event)
+
             if event.get('type') == 'group_action' and event.get('action') == 'join_group':
                 await add_broadcast(websocket, event.get('data'))
             if event.get('type') == 'group_action' and event.get('action') == 'leave_room':
                 await remove_broadcast(websocket, event.get('data'))
             await websocket.send(json.dumps(response))
             print(f"Sending response: {response}")
+
             if is_refresh:
                 message = json.dumps({"status": "refresh"})
                 for client in connected_clients:
@@ -96,18 +98,23 @@ async def server(websocket):
                         except websockets.exceptions.ConnectionClosed:
                             connected_clients.remove(client)
                             break
+
             if event.get('type') == 'start_game' and response.get('status') == 'success':
                 left_client_sockets =  groups[f"{event.get('data').get('room_id')}_left"]
                 right_client_sockets = groups[f"{event.get('data').get('room_id')}_right"]
-                new_game = Game_Server(left_client_sockets, right_client_sockets)
+                left_client_address = [get_address_from_websockets(socket) for socket in left_client_sockets]
+                right_client_address = [get_address_from_websockets(socket) for socket in right_client_sockets]
+                game_server_port = get_free_port()
+                room = get_room_setting(event.get('data').get('room_id'))
+
+                new_game = Game_Server(game_server_port, left_client_address, right_client_address, room.get('left_group'), room.get('right_group'))
                 games.add(new_game)
 
-                room = get_room_setting(event.get('data').get('room_id'))
                 for player_socket in left_client_sockets.union(right_client_sockets):
                     await player_socket.send(json.dumps({
                                                 "status": "start_game", 
                                                 "data": {
-                                                    "server_address": (HOST, 5555),
+                                                    "server_address": (HOST, game_server_port),
                                                     "left_players": room.get('left_group'),
                                                     "right_players": room.get('right_group')
                                                 }}
