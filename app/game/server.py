@@ -1,4 +1,4 @@
-import socket
+import socket, sys
 from .items import *
 import threading, json, time
 import argparse
@@ -60,11 +60,13 @@ class Game_Server():
                 self.data['won'] = True
                 self.data['win_text'] = "Right Player Won!"
 
-            if self.data.get('won'):
-                self.is_running = False
-
             self.data['ball'] = {"x": self.ball.x, "y": self.ball.y}
             self.sendTo()
+
+            if self.data.get('won'):
+                self.is_running = False
+                
+        sys.exit()
 
     def handle_client(self):
         if self.comming_data:

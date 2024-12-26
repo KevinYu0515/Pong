@@ -64,9 +64,13 @@ class App(AppInterface):
                     game_server_address = (response.get('data').get('server_address')[0], response.get('data').get('server_address')[1])
                     left_players = response.get('data').get('left_players')
                     right_players = response.get('data').get('right_players')
-                    print(game_client_address, game_server_address)
+                    self.window.withdraw()
                     new_game = Game_Client(game_client_address, game_server_address, left_players, right_players, {"side": self.state.side, "idx": self.state.position - 1})
                     new_game.run()
+                    print("The Game is ending...")
+                    self.state.return_to_lobby()
+                    self.window.deiconify()
+                    
 
                 elif response.get('status') == 'refresh':
                     print("Updating state...")

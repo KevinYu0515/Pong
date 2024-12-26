@@ -1,5 +1,5 @@
 import threading, socket, json, argparse
-import pygame
+import pygame, sys
 from .items import *
 from .constants import *
 
@@ -64,6 +64,7 @@ class Game_Client():
                     paddle.reset()
                 self.left_score = 0
                 self.right_score = 0
+                self.is_running = False
 
         pygame.quit()
     
@@ -135,7 +136,7 @@ class Game_Client():
             if keys[pygame.K_DOWN] and self.right_paddles[idx].y + self.right_paddles[idx].VEL + self.right_paddles[idx].height <= SCREEN_HEIGHT:
                 self.right_paddles[idx].move(up=False)
                 self.senTo()
-    
+
 class SocketThread(threading.Thread):
     def __init__(self, addr, client, lock):
         threading.Thread.__init__(self)
@@ -156,6 +157,10 @@ class SocketThread(threading.Thread):
                     continue
                 finally:
                     self.client.comming_data = data
+                    if data.get('won'):
+                        self.client.won = data.get('won')
+                        self.client.win_text = data.get('win_text')
+                        break
 
 if __name__ == "__main__":
     left_paddles = [{"position": 0}, {"position": 1}]

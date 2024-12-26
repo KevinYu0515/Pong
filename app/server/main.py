@@ -14,6 +14,7 @@ connected_clients = set()
 groups = defaultdict(set)
 games = set()
 
+# 非同步處裡事件（等待資料庫回應）
 async def handle_event(event):
     
     response, refresh = {}, True
@@ -47,10 +48,12 @@ async def handle_event(event):
     
     return [response, refresh]
 
-async def add_broadcast(websocket, data):  
+# 加入廣播群組（房間）
+def add_broadcast(websocket, data):  
     group_name = f"{data.get('room_id')}_{data.get('side')}"
     groups[group_name].add(websocket)
 
+# 廣播群組訊息（房間）
 async def send_broadcast(websocket, data):
     group_name = f"{data.get('room_id')}_{data.get('side')}"
     response = {
@@ -62,9 +65,66 @@ async def send_broadcast(websocket, data):
     for client in groups[group_name]:
         await client.send(json.dumps(response))
 
-async def remove_broadcast(websocket, data):
+# 退出廣播群組（房間）
+def remove_broadcast(websocket, data):
     group_name = f"{data.get('room_id')}_{data.get('side')}"
     groups[group_name].remove(websocket)
+
+# 平行處理接收的訊息
+async def process_message(websocket, message):
+    event = json.loads(message)
+    if event.get('type') == 'chat':
+        await send_broadcast(websocket, event.get('data'))
+        return
+
+    response, is_refresh = await handle_event(event)
+
+    if event.get('type') == 'group_action' and event.get('action') == 'join_group':
+        add_broadcast(websocket, event.get('data'))
+    if event.get('type') == 'group_action' and event.get('action') == 'leave_room':
+        remove_broadcast(websocket, event.get('data'))
+    await websocket.send(json.dumps(response))
+    print(f"Sending response: {response}")
+
+    if is_refresh:
+        message = json.dumps({"status": "refresh"})
+        for client in connected_clients:
+            print(f"Sending refresh to {client.remote_address}")
+            if client.remote_address != websocket.remote_address:
+                try:
+                    await client.send(message)
+                except websockets.exceptions.ConnectionClosed:
+                    connected_clients.remove(client)
+                    break
+
+    if event.get('type') == 'start_game' and response.get('status') == 'success':
+        left_client_sockets =  groups[f"{event.get('data').get('room_id')}_left"]
+        right_client_sockets = groups[f"{event.get('data').get('room_id')}_right"]
+        left_client_address = [get_remote_address_from_websockets(socket) for socket in left_client_sockets]
+        right_client_address = [get_remote_address_from_websockets(socket) for socket in right_client_sockets]
+        game_server_port = get_free_port()
+        game_server_address = ('0.0.0.0', game_server_port)
+        room = get_room_setting(event.get('data').get('room_id'))
+        
+        print(left_client_address, right_client_address, game_server_address)
+        new_game = Game_Server(game_server_address,
+                               left_client_address,
+                               right_client_address,
+                               room.get('left_group'),
+                               room.get('right_group'),
+                               room.get('winning_points'))
+        games.add(new_game)
+        threading.Thread(target=new_game.run).start()
+
+        for player_socket in left_client_sockets.union(right_client_sockets):
+            await player_socket.send(json.dumps({
+                                        "status": "start_game", 
+                                        "data": {
+                                            "server_address": (HOST, game_server_port),
+                                            "left_players": room.get('left_group'),
+                                            "right_players": room.get('right_group')
+                                        }}
+                                    ))
 
 async def server(websocket):
     print(f"Client {websocket.remote_address} connected")
@@ -74,54 +134,7 @@ async def server(websocket):
         while True:
             message = await websocket.recv()
             print(f"Received message: {message}")
-            event = json.loads(message)
-            if event.get('type') == 'chat':
-                await send_broadcast(websocket, event.get('data'))
-                continue
-
-            response, is_refresh = await handle_event(event)
-
-            if event.get('type') == 'group_action' and event.get('action') == 'join_group':
-                await add_broadcast(websocket, event.get('data'))
-            if event.get('type') == 'group_action' and event.get('action') == 'leave_room':
-                await remove_broadcast(websocket, event.get('data'))
-            await websocket.send(json.dumps(response))
-            print(f"Sending response: {response}")
-
-            if is_refresh:
-                message = json.dumps({"status": "refresh"})
-                for client in connected_clients:
-                    print(f"Sending refresh to {client.remote_address}")
-                    if client.remote_address != websocket.remote_address:
-                        try:
-                            await client.send(message)
-                        except websockets.exceptions.ConnectionClosed:
-                            connected_clients.remove(client)
-                            break
-
-            if event.get('type') == 'start_game' and response.get('status') == 'success':
-                left_client_sockets =  groups[f"{event.get('data').get('room_id')}_left"]
-                right_client_sockets = groups[f"{event.get('data').get('room_id')}_right"]
-                left_client_address = [get_remote_address_from_websockets(socket) for socket in left_client_sockets]
-                right_client_address = [get_remote_address_from_websockets(socket) for socket in right_client_sockets]
-                game_server_port = get_free_port()
-                game_server_address = ('0.0.0.0', game_server_port)
-                room = get_room_setting(event.get('data').get('room_id'))
-                
-                print(left_client_address, right_client_address, game_server_address)
-                new_game = Game_Server(game_server_address, left_client_address, right_client_address, room.get('left_group'), room.get('right_group'))
-                games.add(new_game)
-                threading.Thread(target=new_game.run).start()
-
-                for player_socket in left_client_sockets.union(right_client_sockets):
-                    await player_socket.send(json.dumps({
-                                                "status": "start_game", 
-                                                "data": {
-                                                    "server_address": (HOST, game_server_port),
-                                                    "left_players": room.get('left_group'),
-                                                    "right_players": room.get('right_group')
-                                                }}
-                                            ))
+            asyncio.create_task(process_message(websocket, message))
 
     except websockets.exceptions.ConnectionClosedOK:
         print("Client disconnected")
