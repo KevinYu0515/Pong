@@ -22,11 +22,20 @@ async def process_message(websocket, message):
 
     response, is_refresh, boardcast = await handle_event(event)
 
-    print(f"Processing event: {event}")
     if event.get('type') == 'group_action' and event.get('action') == 'join_group':
         groupSocket.add_broadcast(websocket, event.get('data'))
     if event.get('type') == 'group_action' and event.get('action') == 'leave_room':
         groupSocket.remove_broadcast(websocket, event.get('data'))
+    if event.get('type') == 'group_action' and event.get('action') == 'change_group':
+        groupSocket.remove_broadcast(websocket, {
+            "room_id": event.get('data').get('room_id'),
+            "side": 'left' if event.get('data').get('side') == 'right' else 'right'
+        })
+        groupSocket.add_broadcast(websocket, {
+            "room_id": event.get('data').get('room_id'),
+            "side": event.get('data').get('side')
+        })
+
     await websocket.send(json.dumps(response))
     print(f"Sending response: {response}")
 

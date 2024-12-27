@@ -67,10 +67,8 @@ class LobbyState(WindowState):
                            *([f"[陣營上限 {room.get('player_limit')} 位]"] if room.get('mode') != 0 else ""),
                            f"[每局 {room.get('duration')} s]",
                            f"[最快獲得 {room.get('winning_points')} 分獲勝]"]
-            label_text2 = f"缺額機制: {disconnection_list[room.get('disconnection')]}"
             room_ui = {
                 "rule": ttk.Label(room_frame, text=' '.join(label_text1), style="primary.TLabel", font=("Arial", 10)),
-                "disconnection": ttk.Label(room_frame, text=label_text2, style="primary.TLabel", font=("Arial", 10))
             }
             
             for label in room_ui.values():

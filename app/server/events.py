@@ -27,7 +27,6 @@ class GroupSocket():
     # 退出廣播群組（房間）
     def remove_broadcast(self, websocket, data):
         group_name = f"{data.get('room_id')}_{data.get('side')}"
-        print(group_name)
         self.groups[group_name].remove(websocket)
 
 # 其他事件
@@ -56,6 +55,7 @@ async def handle_event(event):
     if event.get('type') == 'switch_position':
         response = switch_position(event.get('data'))
         refresh = False
+        boardcast = True
     if event.get('type') == 'toggle_ready':
         response = toggle_ready(event.get('data'))
         refresh = False
@@ -97,14 +97,13 @@ def create_room(data):
     player_limit = data.get('player_limit', -1)
     duration = data.get('duration', -1)
     winning_points = data.get('winning_points', -1)
-    disconnection = data.get('disconnection', -1)
 
-    if mode == -1 or player_limit == -1 or duration == -1 or winning_points == -1 or disconnection == -1:
+    if mode == -1 or player_limit == -1 or duration == -1 or winning_points == -1:
         return {"status": "error", "message": "缺少房間設定"}
 
-    room_id = room.add_room_setting(mode, player_limit, duration, winning_points, disconnection)
+    room_id = room.add_room_setting(mode, player_limit, duration, winning_points)
     group.add_new_groups(room_id)
-    return {"status": "success", "message": "房間已新增"}
+    return {"status": "success", "message": "房間已新增", "data": {"room_id": room_id}}
 
 def get_players(data):
     room_id = data.get('room_id')
@@ -128,7 +127,8 @@ def group_action(action, data):
         user.set_user_position(username, None)
     if action == "change_group":
         message = "成功切換陣營"    
-        user.set_user_group(username, room_id, side, position) 
+        user.set_user_group(username, room_id, side, position)
+        user.set_user_ready_status(username, False)
     if action == "join_group":
         message = "成功加入陣營"
         user.set_user_group(username, room_id, side, position)
@@ -155,6 +155,6 @@ def start_game(data):
     player_limit = room_settings.get('player_limit')
     left_group = room_settings.get('left_group')
     right_group = room_settings.get('right_group')
-    if sum(1 for player in left_group if player.get('ready')) < player_limit or sum(1 for player in right_group if player.get('ready')) < player_limit:
-        return {"status": "error", "message": "陣營人數不足"}
+    if sum(1 for player in left_group if player.get('ready')) == 0 or sum(1 for player in right_group if player.get('ready')) == 0:
+        return {"status": "error", "message": "陣營人數至少為 1 人"}
     return {"status": "success", "message": "遊戲開始"}

@@ -45,20 +45,12 @@ class Create_RoomState(WindowState):
         winning_points.set(3)
         winning_points.pack(fill=X, pady=5)
 
-        # 缺額處理
-        lf = ttk.Labelframe(self.frame, text="玩家缺額的應變措施", bootstyle=PRIMARY, width=300, height=100, padding=20)
-        lf.pack(pady=10, padx=20)
-        disconnection_picker = ttk.IntVar(value=0)
-        ttk.Radiobutton(lf, text='自動代理', variable=disconnection_picker, value=0).pack(side=ttk.LEFT, padx=10)
-        ttk.Radiobutton(lf, text='保持空位', variable=disconnection_picker, value=1).pack(side=ttk.LEFT, padx=10)
-
         # 提交按鈕
         ttk.Button(self.frame, text="創建房間", command=lambda: self.submit(
             mode=mode.get(),
             player_limit= 1 if mode.get() == 0 else player_limit.get(),
             duration=duration_input.get(),
             winning_points=winning_points.get(),
-            disconnection=disconnection_picker.get()
         )).pack(pady=10)
 
         ttk.Button(self.frame, text="返回大廳", command=lambda: self.app.change_state('Lobby')).pack(pady=10)

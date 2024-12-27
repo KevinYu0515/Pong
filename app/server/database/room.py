@@ -13,20 +13,18 @@ class RoomSettings(Base):
     player_limit = Column(Integer, nullable=False)
     duration = Column(Integer, nullable=False)
     winning_points = Column(Integer, nullable=False)
-    disconnection = Column(Integer, nullable=False)
 
     def __repr__(self):
         return f"<RoomSettings(mode={self.mode}, player_limit={self.player_limit}, " \
-               f"duration={self.duration}, winning_points={self.winning_points}, disconnection={self.disconnection})>"
+               f"duration={self.duration}, winning_points={self.winning_points}>"
 
-def add_room_setting(mode, player_limit, duration, winning_points, disconnection):
+def add_room_setting(mode, player_limit, duration, winning_points):
     session = Session()
     room_setting = RoomSettings(
         mode=mode,
         player_limit=player_limit,
         duration=duration,
-        winning_points=winning_points,
-        disconnection=disconnection
+        winning_points=winning_points
     )
     session.add(room_setting)
     session.commit()
@@ -34,7 +32,7 @@ def add_room_setting(mode, player_limit, duration, winning_points, disconnection
     session.close()
     return room_id
 
-def update_room_setting(id, mode=None, player_limit=None, duration=None, winning_points=None, disconnection=None):
+def update_room_setting(id, mode=None, player_limit=None, duration=None, winning_points=None):
     session = Session()
     room_setting = session.query(RoomSettings).filter_by(id=id).first()
     if room_setting:
@@ -46,8 +44,6 @@ def update_room_setting(id, mode=None, player_limit=None, duration=None, winning
             room_setting.duration = duration
         if winning_points is not None:
             room_setting.winning_points = winning_points
-        if disconnection is not None:
-            room_setting.disconnection = disconnection
         session.commit()
     session.close()
 
@@ -101,7 +97,6 @@ def get_room_setting(id):
         "player_limit": room.player_limit,
         "duration": room.duration,
         "winning_points": room.winning_points,
-        "disconnection": room.disconnection,
         'left_group': left_group_players,
         'right_group': right_group_players
     }
@@ -136,7 +131,6 @@ def get_all_room_settings():
         "player_limit": room.player_limit,
         "duration": room.duration,
         "winning_points": room.winning_points,
-        "disconnection": room.disconnection,
         'left_count': counts_dict.get(room.id, {}).get("left_count", 0),
         'right_count': counts_dict.get(room.id, {}).get("right_count", 0)
     } for room in room_settings]

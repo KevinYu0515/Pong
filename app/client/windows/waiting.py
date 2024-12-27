@@ -112,6 +112,7 @@ class WaitingState(WindowState):
                     await self.app.websocket_client.send(json.dumps({
                         "type": "switch_position",
                         "data": {
+                            "room_id": self.app.room_id,
                             "name1": self.app.username,
                             "name2": group[idx].get('name'),
                             "position1": group[idx].get('position'),
@@ -121,12 +122,14 @@ class WaitingState(WindowState):
 
                     async with self.app.condition:
                         await self.app.condition.wait()
+                        self.handle()
+
                 except Exception as e:
                     print(e)
 
             asyncio.run_coroutine_threadsafe(handle_switch_player(), self.app.loop)
 
-        if  any(player['name'] == self.app.username for player in self.left_group):
+        if any(player['name'] == self.app.username for player in self.left_group):
             for idx, player in enumerate(self.left_group):
                 player_frame = ttk.Frame(self.info_frame, padding=5)
                 player_frame.pack(fill='x', padx=10, pady=5)
@@ -139,7 +142,7 @@ class WaitingState(WindowState):
                     self.position = int(player.get('position'))
                     self.side = player.get('side')
                     self.is_ready = player.get('ready')
-                else:
+                elif not player.get('ready'):
                     ttk.Button(player_frame, text="更換", command=lambda idx=idx: switch_player(idx, 'left')).pack(side='right')
 
                 self.player_frames.append(player_frame)
@@ -154,7 +157,7 @@ class WaitingState(WindowState):
                     self.position = int(player.get('position'))
                     self.side = player.get('side')
                     self.is_ready = player.get('ready')
-                else:
+                elif not player.get('ready'):
                     ttk.Button(player_frame, text="更換", command=lambda idx=idx: switch_player(idx, 'right')).pack(side='left')
 
                 self.player_frames.append(player_frame)
@@ -170,26 +173,11 @@ class WaitingState(WindowState):
             self.player_frames[self.position - 1].children['!label'].config(style='default.TLabel')
 
     def change_group(self):
-        def up_to_limit(group):
-            if len(group) >= self.limit:
-                Messagebox.show_info(message="該陣營已達到人數上限")
-                return True
-            return False
         
-        if  self.side == 'left':
-            if up_to_limit(self.right_group):
-                return
-            the_chosen_player = next((player for player in self.left_group if player['name'] == self.app.username), None)
-            if the_chosen_player:
-                self.left_group.remove(the_chosen_player)
-                self.right_group.append(the_chosen_player)
-        elif self.side == 'right':
-            if up_to_limit(self.left_group):
-                return
-            the_chosen_player = next((player for player in self.right_group if player['name'] == self.app.username), None)
-            if the_chosen_player:
-                self.right_group.remove(the_chosen_player)
-                self.left_group.append(the_chosen_player)
+        group = self.left_group if self.side == 'right' else self.right_group
+        if len(group) >= self.limit:
+            Messagebox.show_info(message="該陣營已達到人數上限")
+            return
         
         print(f"Player {self.app.username} changed group")
         
@@ -209,7 +197,8 @@ class WaitingState(WindowState):
                 async with self.app.condition:
                     await self.app.condition.wait()
                     print("Changed group")
-                    self.update_players()
+                    self.handle()
+
             except Exception as e:
                 print(e)
         

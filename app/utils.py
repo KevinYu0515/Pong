@@ -1,5 +1,4 @@
 import socket, random
-import websockets
 
 def get_free_port():
     while True:
