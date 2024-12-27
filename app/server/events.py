@@ -1,4 +1,70 @@
 from .database import user, room, group
+from collections import defaultdict
+import json
+
+# 群組事件
+class GroupSocket():
+    def __init__(self):
+        self.groups = defaultdict(set)
+
+    # 加入廣播群組（房間）
+    def add_broadcast(self, websocket, data):  
+        group_name = f"{data.get('room_id')}_{data.get('side')}"
+        self.groups[group_name].add(websocket)
+
+    # 廣播群組訊息（房間）
+    async def send_broadcast(self, websocket, data):
+        group_name = f"{data.get('room_id')}_{data.get('side')}"
+        response = {
+            "status": "refresh",
+            "data": {
+                "chat": data.get('message')
+            }
+        }
+        for client in self.groups[group_name]:
+            await client.send(json.dumps(response))
+
+    # 退出廣播群組（房間）
+    def remove_broadcast(self, websocket, data):
+        group_name = f"{data.get('room_id')}_{data.get('side')}"
+        print(group_name)
+        self.groups[group_name].remove(websocket)
+
+# 其他事件
+# 非同步處裡事件（等待資料庫回應）
+async def handle_event(event):
+
+    response, refresh, boardcast = {}, True, False
+    if event.get('type') == 'login':
+        response = login(event.get('data'))
+        refresh = False
+    if event.get('type') == 'logout':
+        response = logout(event.get('data'))
+        refresh = True
+    if event.get('type') == 'get_all_rooms':
+        response = get_all_rooms()
+        refresh = False
+    if event.get('type') == 'get_players':
+        response = get_players(event.get('data'))
+        refresh = False
+
+    if event.get('type') == 'create_room':
+        response = create_room(event.get('data'))
+
+    if event.get('type') == 'group_action':
+        response = group_action(event.get('action'), event.get('data'))
+    if event.get('type') == 'switch_position':
+        response = switch_position(event.get('data'))
+        refresh = False
+    if event.get('type') == 'toggle_ready':
+        response = toggle_ready(event.get('data'))
+        refresh = False
+        boardcast = True
+    if event.get('type') == 'start_game':
+        response = start_game(event.get('data'))
+        refresh = False
+    
+    return [response, refresh, boardcast]
 
 def login(data):
     name = data.get('name')
@@ -58,6 +124,8 @@ def group_action(action, data):
     if action == "leave_room":
         message = "成功離開房間"
         user.set_user_group(username, None, None, None)
+        user.set_user_ready_status(username, False)
+        user.set_user_position(username, None)
     if action == "change_group":
         message = "成功切換陣營"    
         user.set_user_group(username, room_id, side, position) 

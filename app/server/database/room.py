@@ -14,7 +14,7 @@ class RoomSettings(Base):
     duration = Column(Integer, nullable=False)
     winning_points = Column(Integer, nullable=False)
     disconnection = Column(Integer, nullable=False)
-    
+
     def __repr__(self):
         return f"<RoomSettings(mode={self.mode}, player_limit={self.player_limit}, " \
                f"duration={self.duration}, winning_points={self.winning_points}, disconnection={self.disconnection})>"
@@ -77,21 +77,24 @@ def get_room_setting(id):
     left_group_players = session.query(UserDB).filter(UserDB.room_id == id, UserDB.side == 'left').all()
     right_group_players = session.query(UserDB).filter(UserDB.room_id == id, UserDB.side == 'right').all()
     
-    left_group_players = [{
+    left_group_players = sorted(
+                        [{
                             "name": player.name,
                             "ready": player.ready,
                             "color": player.color,
+                            "side": player.side,
                             "position": player.position,
-                        } for player in left_group_players]
-    right_group_players = [{
+                        } for player in left_group_players], key=lambda player: player['position'])
+    
+    right_group_players = sorted(
+                        [{
                             "name": player.name,
                             "ready": player.ready,
                             "color": player.color,
+                            "side": player.side,
                             "position": player.position,
-                        } for player in right_group_players]
+                        } for player in right_group_players], key=lambda player: player['position'])
 
-    print(left_group_players)
-    print(right_group_players)
     room_setting = {
         "id": room.id,
         "mode": room.mode,
@@ -142,6 +145,16 @@ def get_all_room_settings():
 
 def delete_room(room_id):
     session = Session()
+    session.query(UserDB).filter_by(room_id=room_id).update({
+        UserDB.room_id: None, 
+        UserDB.side: None, 
+        UserDB.position: None, 
+        UserDB.ready: False,
+        UserDB.color: None
+    })  
+    groups = session.query(GroupDB).filter_by(room_id=room_id).all()
+    for group in groups:
+        session.delete(group)
     room = session.query(RoomSettings).filter_by(id=room_id).first()
     session.delete(room)
     session.commit()

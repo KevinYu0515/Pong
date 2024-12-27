@@ -56,6 +56,10 @@ def user_logout(name):
     session = Session()
     user = session.query(UserDB).filter_by(name=name).first()
     user.status = False
+    user.room_id = None
+    user.side = None
+    user.position = None
+    user.ready = False
     session.commit()
     session.close()
 

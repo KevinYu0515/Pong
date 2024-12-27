@@ -2,8 +2,7 @@ from .database import init_db
 from .events import *
 import websockets, os
 import os, asyncio, json, threading
-from collections import defaultdict
-from .database.room import get_room_setting
+from .database.room import get_room_setting, delete_room
 from ..utils import *
 from ..game import Game_Server 
 
@@ -11,84 +10,34 @@ HOST = os.getenv('HOST', 'localhost')
 PORT = os.getenv('PORT', '10001')
 
 connected_clients = set()
-groups = defaultdict(set)
 games = set()
-
-# 非同步處裡事件（等待資料庫回應）
-async def handle_event(event):
-    
-    response, refresh = {}, True
-    if event.get('type') == 'login':
-        response = login(event.get('data'))
-        refresh = False
-    if event.get('type') == 'logout':
-        response = logout(event.get('data'))
-        refresh = False
-    if event.get('type') == 'get_all_rooms':
-        response = get_all_rooms()
-        refresh = False
-    if event.get('type') == 'get_players':
-        response = get_players(event.get('data'))
-        refresh = False
-
-    if event.get('type') == 'create_room':
-        response = create_room(event.get('data'))
-
-    if event.get('type') == 'group_action':
-        response = group_action(event.get('action'), event.get('data'))
-    if event.get('type') == 'switch_position':
-        response = switch_position(event.get('data'))
-        refresh = False
-    if event.get('type') == 'toggle_ready':
-        response = toggle_ready(event.get('data'))
-        refresh = False
-    if event.get('type') == 'start_game':
-        response = start_game(event.get('data'))
-        refresh = False
-    
-    return [response, refresh]
-
-# 加入廣播群組（房間）
-def add_broadcast(websocket, data):  
-    group_name = f"{data.get('room_id')}_{data.get('side')}"
-    groups[group_name].add(websocket)
-
-# 廣播群組訊息（房間）
-async def send_broadcast(websocket, data):
-    group_name = f"{data.get('room_id')}_{data.get('side')}"
-    response = {
-        "status": "refresh",
-        "data": {
-            "chat": data.get('message')
-        }
-    }
-    for client in groups[group_name]:
-        await client.send(json.dumps(response))
-
-# 退出廣播群組（房間）
-def remove_broadcast(websocket, data):
-    group_name = f"{data.get('room_id')}_{data.get('side')}"
-    groups[group_name].remove(websocket)
+groupSocket = GroupSocket()
 
 # 平行處理接收的訊息
 async def process_message(websocket, message):
     event = json.loads(message)
     if event.get('type') == 'chat':
-        await send_broadcast(websocket, event.get('data'))
+        await groupSocket.send_broadcast(websocket, event.get('data'))
         return
 
-    response, is_refresh = await handle_event(event)
+    response, is_refresh, boardcast = await handle_event(event)
 
+    print(f"Processing event: {event}")
     if event.get('type') == 'group_action' and event.get('action') == 'join_group':
-        add_broadcast(websocket, event.get('data'))
+        groupSocket.add_broadcast(websocket, event.get('data'))
     if event.get('type') == 'group_action' and event.get('action') == 'leave_room':
-        remove_broadcast(websocket, event.get('data'))
+        groupSocket.remove_broadcast(websocket, event.get('data'))
     await websocket.send(json.dumps(response))
     print(f"Sending response: {response}")
 
-    if is_refresh:
+    # 全部玩家更新畫面或是群組玩家更新畫面
+    if is_refresh or boardcast:
         message = json.dumps({"status": "refresh"})
-        for client in connected_clients:
+        if is_refresh:
+            clients = connected_clients
+        if boardcast:
+            clients = groupSocket.groups[f"{event.get('data').get('room_id')}_left"].union(groupSocket.groups[f"{event.get('data').get('room_id')}_right"])
+        for client in clients:
             print(f"Sending refresh to {client.remote_address}")
             if client.remote_address != websocket.remote_address:
                 try:
@@ -98,8 +47,8 @@ async def process_message(websocket, message):
                     break
 
     if event.get('type') == 'start_game' and response.get('status') == 'success':
-        left_client_sockets =  groups[f"{event.get('data').get('room_id')}_left"]
-        right_client_sockets = groups[f"{event.get('data').get('room_id')}_right"]
+        left_client_sockets =  groupSocket.groups[f"{event.get('data').get('room_id')}_left"]
+        right_client_sockets = groupSocket.groups[f"{event.get('data').get('room_id')}_right"]
         left_client_address = [get_remote_address_from_websockets(socket) for socket in left_client_sockets]
         right_client_address = [get_remote_address_from_websockets(socket) for socket in right_client_sockets]
         game_server_port = get_free_port()
@@ -107,14 +56,23 @@ async def process_message(websocket, message):
         room = get_room_setting(event.get('data').get('room_id'))
         
         print(left_client_address, right_client_address, game_server_address)
-        new_game = Game_Server(game_server_address,
+        game = Game_Server(game_server_address,
                                left_client_address,
                                right_client_address,
                                room.get('left_group'),
                                room.get('right_group'),
                                room.get('winning_points'))
-        games.add(new_game)
-        threading.Thread(target=new_game.run).start()
+
+        games.add(game)
+        game_thread = threading.Thread(target=game.run)
+        game_thread.start()
+
+        def after_game_end(game, game_thread):
+            game_thread.join()
+            games.remove(game)
+            delete_room(event.get('data').get('room_id'))
+
+        threading.Thread(target=after_game_end, args=(game, game_thread, )).start()
 
         for player_socket in left_client_sockets.union(right_client_sockets):
             await player_socket.send(json.dumps({

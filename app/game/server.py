@@ -65,8 +65,6 @@ class Game_Server():
 
             if self.data.get('won'):
                 self.is_running = False
-                
-        sys.exit()
 
     def handle_client(self):
         if self.comming_data:

@@ -71,7 +71,6 @@ class App(AppInterface):
                     self.state.return_to_lobby()
                     self.window.deiconify()
                     
-
                 elif response.get('status') == 'refresh':
                     print("Updating state...")
                     for widget in self.window.winfo_children():
@@ -107,11 +106,30 @@ class App(AppInterface):
 
     def on_close(self):
         print("Closing application...")
-        asyncio.run_coroutine_threadsafe(self.close_connection(), self.loop)
         self.window.destroy()
 
+        async def handle_logout():
+            try:
+                await self.websocket_client.send(json.dumps({
+                    "type": "logout",
+                    "data": {
+                        "name": self.username
+                    }
+                }))
+
+                async with self.condition:
+                    await self.condition.wait()
+                    print("Logged out")
+                    self.set_username(None)
+                    self.change_state('Login')
+
+            except Exception as e:
+                print(e)
+        
+        asyncio.run_coroutine_threadsafe(handle_logout(), self.loop)
+        asyncio.run_coroutine_threadsafe(self.close_connection(), self.loop)
+
     def clear_window(self):
-        # ttk.Style.instance = None
         for widget in self.window.winfo_children():
             widget.destroy()
        

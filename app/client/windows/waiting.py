@@ -15,14 +15,18 @@ class WaitingState(WindowState):
         self.right_group = []
         self.player_frames = []
         self.chat = []
+        self.control_bars = []
     
     def handle(self):
+        for widget in self.app.window.winfo_children():
+            widget.destroy()
+
         print("Displaying waiting screen...")
         self.create_ui()
         asyncio.run_coroutine_threadsafe(self.get_players(), self.app.loop)
 
     def create_ui(self):
-        self.preview_frame = ttk.Frame(self.app.window, padding=10, borderwidth=20, height=200, relief=RAISED, style='White.TFrame')
+        self.preview_frame = ttk.Frame(self.app.window, padding=10, borderwidth=20, height=200, relief=RAISED, style='default.TFrame')
         self.preview_frame.pack(fill='x', anchor='n', padx=20, pady=(10, 5))
 
         self.info_frame = ttk.Frame(self.app.window, padding=10, height=200)
@@ -38,7 +42,7 @@ class WaitingState(WindowState):
         return_button = ttk.Button(self.button_frame, text="返回大廳", command=lambda: self.return_to_lobby())
         return_button.pack(pady=20, padx=10, side='right')
         
-        self.log_frame = ttk.Frame(self.app.window, padding=10, borderwidth=20, relief=RAISED, style='White.TFrame')
+        self.log_frame = ttk.Frame(self.app.window, padding=10, borderwidth=20, relief=RAISED, style='default.TFrame')
         self.log_frame.pack(fill='x', pady=10, padx=20)
         for text in self.chat:
             log_text = ttk.Label(self.log_frame, text=text, font=("Arial", 12))
@@ -72,10 +76,33 @@ class WaitingState(WindowState):
             print(e)
 
     def update_players(self):
-        self.player_frames = []
-        for widget in self.info_frame.winfo_children():
-            widget.destroy()
 
+        # 玩家準備樣式
+        ready_style = ttk.Style()
+        ready_style.configure("Ready.TLabel", background="#5cb85c")
+
+        # 布局的玩家樣式
+        control_bar_style = ttk.Style()
+        control_bar_style.configure('DafultBar.TFrame', background="#4CAF50")
+
+        # 布局預覽 UI 
+        self.control_bars.clear()
+        for player in self.left_group:
+            control_bar = ttk.Frame(self.preview_frame, width=10, height=100, style='DafultBar.TFrame')
+            if player.get('name') == self.app.username:
+                control_bar.configure(borderwidth=10, relief=RAISED)
+            control_bar.pack(side='left', anchor='w', padx=10, pady=5)
+            self.control_bars.append(control_bar)
+        
+        for player in self.right_group:
+            control_bar = ttk.Frame(self.preview_frame, width=10, height=100, style='DafultBar.TFrame')
+            if player.get('name') == self.app.username:
+                control_bar.configure(borderwidth=10, relief=RAISED)
+            control_bar.pack(side='right', anchor='e', padx=10, pady=5)
+            self.control_bars.append(control_bar)
+
+        # 玩家資訊 UI
+        self.player_frames = []
         def switch_player(idx, side):
             print(f"Switching player to {idx}")
             group = self.left_group if side == 'left' else self.right_group
@@ -88,66 +115,59 @@ class WaitingState(WindowState):
                             "name1": self.app.username,
                             "name2": group[idx].get('name'),
                             "position1": group[idx].get('position'),
-                            "position2": idx,
+                            "position2": self.position,
                         }
                     }))
 
                     async with self.app.condition:
                         await self.app.condition.wait()
-                        print("Switched player")
-                        self.update_players()
                 except Exception as e:
                     print(e)
 
             asyncio.run_coroutine_threadsafe(handle_switch_player(), self.app.loop)
 
-        
         if  any(player['name'] == self.app.username for player in self.left_group):
             for idx, player in enumerate(self.left_group):
-                if player.get('name') == self.app.username:
-                    self.position = idx
-                    self.side = 'left'
-
                 player_frame = ttk.Frame(self.info_frame, padding=5)
                 player_frame.pack(fill='x', padx=10, pady=5)
                 ttk.Label(player_frame, text=f"{player.get('name')}", font=("Arial", 14), anchor=('w')).pack(side='left')
+                if player.get('ready'):
+                    player_frame.config(style='success.TFrame')
+                    player_frame.children['!label'].config(style='Ready.TLabel')
 
-                if player.get('name') != self.app.username:
-                    ttk.Button(player_frame, text="更換", command=lambda: switch_player(idx, 'left')).pack(side='right')
-                
+                if player.get('name') == self.app.username:
+                    self.position = int(player.get('position'))
+                    self.side = player.get('side')
+                    self.is_ready = player.get('ready')
+                else:
+                    ttk.Button(player_frame, text="更換", command=lambda idx=idx: switch_player(idx, 'left')).pack(side='right')
+
                 self.player_frames.append(player_frame)
         
         elif any(player['name'] == self.app.username for player in self.right_group):
             for idx, player in enumerate(self.right_group):
-                if player.get('name') == self.app.username:
-                    self.position = idx
-                    self.side = 'right'
-
                 player_frame = ttk.Frame(self.info_frame, padding=5)
                 player_frame.pack(fill='x', padx=10, pady=5)
                 ttk.Label(player_frame, text=f"{player.get('name')}", font=("Arial", 14), anchor=('e')).pack(side='right')
-                    
-                if player.get('name') != self.app.username:
-                    ttk.Button(player_frame, text="更換", command=lambda: switch_player(idx, 'right')).pack(side='left')
+            
+                if player.get('name') == self.app.username:
+                    self.position = int(player.get('position'))
+                    self.side = player.get('side')
+                    self.is_ready = player.get('ready')
+                else:
+                    ttk.Button(player_frame, text="更換", command=lambda idx=idx: switch_player(idx, 'right')).pack(side='left')
 
                 self.player_frames.append(player_frame)
-        
-        self.ready_button.config(text="準備", style='success.TButton')
-        self.player_frames[self.position].config(style='default.TFrame')
-        self.player_frames[self.position].children['!label'].config(style='default.TLabel')
-        self.is_ready = False
 
-        for widget in self.preview_frame.winfo_children():
-            widget.destroy()
-        
-        self.control_bars = []
-        for player in self.left_group:
-            control_bar_style = ttk.Style()
-            custom_color = "#4CAF50"
-            control_bar_style.configure('White.TFrame', background=custom_color)
-            control_bar = ttk.Frame(self.preview_frame, width=10, height=100, style='White.TFrame')
-            control_bar.pack(side='left', anchor='w', padx=10, pady=5)
-            self.control_bars.append(control_bar)
+        if self.is_ready:
+            self.ready_button.config(text="取消準備", style='warning.TButton')
+            self.player_frames[self.position - 1].config(style='success.TFrame')
+            self.player_frames[self.position - 1].children['!label'].config(style='Ready.TLabel')
+
+        else:
+            self.ready_button.config(text="準備", style='success.TButton')
+            self.player_frames[self.position - 1].config(style='default.TFrame')
+            self.player_frames[self.position - 1].children['!label'].config(style='default.TLabel')
 
     def change_group(self):
         def up_to_limit(group):
@@ -196,13 +216,11 @@ class WaitingState(WindowState):
         asyncio.run_coroutine_threadsafe(handle_change_group(), self.app.loop)
     
     def toggle_ready(self):
-        
-        ready_style = ttk.Style()
-        ready_style.configure("Ready.TLabel", background="#5cb85c")
 
         def check_last_ready():
+            if len(self.left_group) == 0 or len(self.right_group) == 0:
+                return False
             all_players = self.left_group + self.right_group
-            print(sum(1 for player in all_players if not player.get('ready')), all_players)
             return sum(1 for player in all_players if not player.get('ready')) == 1
 
         async def handle_toggle_ready():
@@ -210,6 +228,7 @@ class WaitingState(WindowState):
                 await self.app.websocket_client.send(json.dumps({
                     "type": "toggle_ready",
                     "data": {
+                        "room_id": self.app.room_id,
                         "name": self.app.username,
                         "status": self.is_ready,
                     }
@@ -238,26 +257,28 @@ class WaitingState(WindowState):
             except Exception as e:
                 print(e)
 
-        if check_last_ready():
+        if not self.is_ready and check_last_ready():
             result = Messagebox.yesno(message="你是最後一位準備玩家，按下確認將開始遊戲")
             self.app.set_start_game(result == 'Yes')
         else:
+            if not self.is_ready and (len(self.left_group) == 0 or len(self.right_group) == 0):
+                Messagebox.show_info(message="等待對面陣營加入")
             if not self.is_ready:
                 self.ready_button.config(text="取消準備", style='warning.TButton')
-                self.player_frames[self.position].config(style='success.TFrame')
-                self.player_frames[self.position].children['!label'].config(style='Ready.TLabel')
+                self.player_frames[self.position - 1].config(style='success.TFrame')
+                self.player_frames[self.position - 1].children['!label'].config(style='Ready.TLabel')
                 self.is_ready = True
             else:
                 self.ready_button.config(text="準備", style='success.TButton')
-                self.player_frames[self.position].config(style='default.TFrame')
-                self.player_frames[self.position].children['!label'].config(style='default.TLabel')
+                self.player_frames[self.position - 1].config(style='default.TFrame')
+                self.player_frames[self.position - 1].children['!label'].config(style='default.TLabel')
                 self.is_ready = False
             asyncio.run_coroutine_threadsafe(handle_toggle_ready(), self.app.loop)
         
         if self.app.is_start:
             self.ready_button.config(text="取消準備", style='warning.TButton')
-            self.player_frames[self.position].config(style='success.TFrame')
-            self.player_frames[self.position].children['!label'].config(style='Ready.TLabel')
+            self.player_frames[self.position - 1].config(style='success.TFrame')
+            self.player_frames[self.position - 1].children['!label'].config(style='Ready.TLabel')
             self.is_ready = True
             asyncio.run_coroutine_threadsafe(handle_toggle_ready(), self.app.loop)
             asyncio.run_coroutine_threadsafe(start_game(), self.app.loop)
@@ -283,15 +304,6 @@ class WaitingState(WindowState):
         asyncio.run_coroutine_threadsafe(handle_chat(), self.app.loop)
 
     def return_to_lobby(self):
-        if self.side == 'left':
-            the_chosen_player = next((player for player in self.left_group if player['name'] == self.app.username), None)
-            if the_chosen_player:
-                self.left_group.remove(the_chosen_player)
-        elif self.side == 'right':
-            the_chosen_player = next((player for player in self.right_group if player['name'] == self.app.username), None)
-            if the_chosen_player:
-                self.right_group.remove(the_chosen_player)
-
         async def handle_return_to_lobby():
             try:
                 await self.app.websocket_client.send(json.dumps({
@@ -301,7 +313,7 @@ class WaitingState(WindowState):
                         "room_id": self.app.room_id,
                         "side": self.side,
                         "username": self.app.username,
-                        "position": None
+                        "position": self.position
                     }
                 }))
 
