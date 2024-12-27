@@ -1,8 +1,7 @@
-import pygame
+import pygame, time, threading
 from .constants import *
 
 class Paddle:
-    COLOR = WHITE
     VEL = 4
 
     def __init__(self, x, y, width, height):
@@ -11,9 +10,8 @@ class Paddle:
         self.width = width
         self.height = height
 
-    def draw(self, win):
-        pygame.draw.rect(
-            win, self.COLOR, (self.x, self.y, self.width, self.height))
+    def draw(self, win, color=WHITE):
+        pygame.draw.rect(win, color, (self.x, self.y, self.width, self.height))
 
     def move(self, up=True):
         if up:
@@ -28,7 +26,6 @@ class Paddle:
 
 class Ball:
     MAX_VEL = 5
-    COLOR = WHITE
 
     def __init__(self, x, y, radius):
         self.x = self.original_x = x
@@ -38,7 +35,7 @@ class Ball:
         self.y_vel = 0
 
     def draw(self, win):
-        pygame.draw.circle(win, self.COLOR, (self.x, self.y), self.radius)
+        pygame.draw.circle(win, WHITE, (self.x, self.y), self.radius)
 
     def move(self):
         self.x += self.x_vel
@@ -49,3 +46,27 @@ class Ball:
         self.y = self.original_y
         self.y_vel = 0
         self.x_vel *= -1
+
+class Timer:
+    def __init__(self, countdown_seconds):
+        self.countdown_seconds = countdown_seconds
+        self.running = False
+        self.start_time = None
+
+    def start(self):
+        self.running = True
+        self.start_time = time.time()
+
+    def stop(self):
+        self.running = False
+
+    def get_remaining_time(self):
+        if not self.running:
+            return self.countdown_seconds
+        
+        elapsed_time = int(time.time() - self.start_time)
+        remaining_time = self.countdown_seconds - elapsed_time
+        return remaining_time
+
+    def reset(self):
+        self.start_time = time.time()

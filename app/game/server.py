@@ -1,11 +1,11 @@
-import socket, sys
+import socket
 from .items import *
 import threading, json, time
 import argparse
 from .constants import *
 
 class Game_Server():
-    def __init__(self, addr, left_client_address, right_client_address, left_paddles, right_paddles, winning_points=10):
+    def __init__(self, addr, left_client_address, right_client_address, left_paddles, right_paddles, winning_points=10, timer=30):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.left_client_address = left_client_address
         self.right_client_address = right_client_address
@@ -13,11 +13,20 @@ class Game_Server():
         self.recevier = SocketThread(addr, self, self.lock)
         self.recevier.start()
         self.update_time = 0.01
+        self.check_address_conn = {}
+        for address in left_client_address + right_client_address:
+            self.check_address_conn[address] = False
+
+        self.is_running = True
+        self.timer = Timer(timer)
+        self.start_timer = Timer(3)
 
         self.winning_points = winning_points
         self.ball = Ball(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, 10)
         self.comming_data = None
         self.data = {
+            'start_time': 3,
+            'timer': timer,
             "left_paddles": [],
             "right_paddles": [],
             "ball": {
@@ -36,22 +45,47 @@ class Game_Server():
         for paddle in right_paddles:
             start_x = SCREEN_WIDTH - 10 - PADDLE_WIDTH - int(paddle.get('position')) * 100
             self.data.get('right_paddles').append({"x": start_x, "y": PADDLE_HEIGHT // 2, "width": PADDLE_WIDTH, "height": PADDLE_HEIGHT})
-
-        self.is_running = True
     
     def run(self):
+        last_printed_time = -1
+        while True:
+            time.sleep(self.update_time)
+            self.handle_client()
+            if all(self.check_address_conn.values()):
+                if not self.start_timer.running:
+                    self.start_timer.start()
+                remaining_time = self.start_timer.get_remaining_time()
+                if remaining_time != last_printed_time:
+                    last_printed_time = remaining_time
+                if remaining_time >= 0:
+                    self.data['start_time'] = remaining_time
+                    self.sendTo()
+                else:
+                    self.data['start_game'] = True
+                    self.start_timer.stop()
+                    self.sendTo()
+                    break
+                    
+        self.timer.start()
         while self.is_running:
             time.sleep(self.update_time)
             self.handle_client()
             self.ball.move()
             self.handle_collision()
-
+            remaining_time = self.timer.get_remaining_time()
+            if remaining_time != last_printed_time:
+                last_printed_time = remaining_time
+            if remaining_time >= 0:
+                self.data['timer'] = remaining_time
+            
             if self.ball.x < 0:
                 self.data['right_score'] =  self.data.get('right_score') + 1
                 self.ball.reset()
+                self.timer.reset()
             elif self.ball.x > SCREEN_WIDTH:
                 self.data['left_score'] = self.data.get('left_score') + 1
                 self.ball.reset()
+                self.timer.reset()
 
             if self.data.get('left_score') >= self.winning_points:
                 self.data['won'] = True
@@ -64,7 +98,9 @@ class Game_Server():
             self.sendTo()
 
             if self.data.get('won'):
-                self.is_running = False
+                self.is_running = False 
+
+        self.timer.stop()
 
     def handle_client(self):
         if self.comming_data:
@@ -114,11 +150,16 @@ class SocketThread(threading.Thread):
         self.socket.bind(addr)
 
     def run(self):
+        print("Listening from players...")
         while True:
-            print("Listening from players...")
             data, addr = self.socket.recvfrom(1024)
-            self.client_address = addr
-            self.server.comming_data = json.loads(data.decode())
+            data = json.loads(data.decode())
+            client_address = (data.get('client_address')[0], data.get('client_address')[1])
+            print(client_address)
+            self.server.check_address_conn[client_address] = True
+            print(self.server.check_address_conn)
+            if all(self.server.check_address_conn.values()):
+                self.server.comming_data = data
 
 if __name__ == "__main__":
     left_paddles = [{"position": 0}, {"position": 1}]
@@ -134,7 +175,6 @@ if __name__ == "__main__":
 
     left_client_address = [('127.0.0.1', left_ports[i]) for i in range(len(left_ports))]
     right_client_address = [('127.0.0.1', right_ports[i]) for i in range(len(right_ports))]
-    print(left_client_address, right_client_address)
     
     server = Game_Server(("0.0.0.0", 5555), left_client_address, right_client_address, left_paddles, right_paddles)
     server.run()

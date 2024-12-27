@@ -132,7 +132,6 @@ class App(AppInterface):
     def clear_window(self):
         for widget in self.window.winfo_children():
             widget.destroy()
-       
 
     def change_state(self, state_name):
         self.clear_window()

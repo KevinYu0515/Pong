@@ -29,7 +29,6 @@ def add_user(name):
     user = UserDB(name=name, status=True, last_login=datetime.now())
     session.add(user)
     session.commit()
-    print(f"使用者已新增: {user.uuid}, {user.name}")
     session.close()
 
 def user_exists(name):

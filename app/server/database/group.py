@@ -16,7 +16,6 @@ class GroupDB(Base):
     
     @property
     def get_left_group(self):
-        print(self.players)
         return [player for player in self.players if player.side == 'left']
 
     @property

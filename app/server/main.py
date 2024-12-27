@@ -64,13 +64,14 @@ async def process_message(websocket, message):
         game_server_address = ('0.0.0.0', game_server_port)
         room = get_room_setting(event.get('data').get('room_id'))
         
-        print(left_client_address, right_client_address, game_server_address)
         game = Game_Server(game_server_address,
                                left_client_address,
                                right_client_address,
                                room.get('left_group'),
                                room.get('right_group'),
-                               room.get('winning_points'))
+                               room.get('winning_points'),
+                               room.get('duration')
+                            )
 
         games.add(game)
         game_thread = threading.Thread(target=game.run)

@@ -6,6 +6,8 @@ BALL_RADIUS = 7
 # 顏色設定
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+TIMER_COLOR = '#FCF300'
+MY_PADDLE_COLOR = (253, 21, 71)
 
 # 遊戲更新率
 FPS = 200
