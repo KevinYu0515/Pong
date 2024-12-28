@@ -3,6 +3,8 @@ import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from ttkbootstrap.dialogs import Messagebox
 import json, asyncio
+from ...utils import *
+from ...game import Game_Client
 
 class WaitingState(WindowState):
     def __init__(self, app):
@@ -220,29 +222,15 @@ class WaitingState(WindowState):
                         "room_id": self.app.room_id,
                         "name": self.app.username,
                         "status": self.is_ready,
+                        "is_last_player": self.app.is_start
                     }
                 }))
 
-                async with self.app.condition:
-                    await self.app.condition.wait()
-                    print(f"Player {self.app.username} is {'ready' if self.is_ready else 'unready'}")
+                if not self.app.is_start:
+                    async with self.app.condition:
+                        await self.app.condition.wait()
+                        print(f"Player {self.app.username} is {'ready' if self.is_ready else 'unready'}")
 
-            except Exception as e:
-                print(e)
-
-        async def start_game():
-            try:
-                await self.app.websocket_client.send(json.dumps({
-                    "type": "start_game",
-                    "data": {
-                        "room_id": self.app.room_id
-                    }
-                }))
-
-                async with self.app.condition:
-                    await self.app.condition.wait()
-                    print("Game started")
-                    self.app.change_state('Game')
             except Exception as e:
                 print(e)
 
@@ -270,7 +258,6 @@ class WaitingState(WindowState):
             self.player_frames[self.position - 1].children['!label'].config(style='Ready.TLabel')
             self.is_ready = True
             asyncio.run_coroutine_threadsafe(handle_toggle_ready(), self.app.loop)
-            asyncio.run_coroutine_threadsafe(start_game(), self.app.loop)
 
     def submit_chat(self, chat_text: str):
 

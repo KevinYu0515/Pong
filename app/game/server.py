@@ -5,8 +5,8 @@ import argparse
 from .constants import *
 
 class Game_Server():
-    def __init__(self, addr, left_client_address, right_client_address, left_paddles, right_paddles, winning_points=10, timer=30):
-        self.server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    def __init__(self, addr, left_client_address, right_client_address, left_paddles, right_paddles, winning_points=10, timer=30, mode='normal'):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.left_client_address = left_client_address
         self.right_client_address = right_client_address
         self.lock = threading.Lock()
@@ -20,18 +20,19 @@ class Game_Server():
         self.is_running = True
         self.timer = Timer(timer)
         self.start_timer = Timer(3)
+        self.mode = mode
 
         self.winning_points = winning_points
-        self.ball = Ball(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, 10)
+        self.ball = [Ball(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, BALL_RADIUS)]
+        self.chaos_timer = Timer(300)
+
         self.comming_data = None
         self.data = {
             'start_time': 3,
             'timer': timer,
             "left_paddles": [],
             "right_paddles": [],
-            "ball": {
-                "x": 0, "y": 0
-            },
+            "ball": [{"x": 0, "y": 0}],
             "left_score": 0,
             "right_score": 0,
             "won": False,
@@ -39,15 +40,16 @@ class Game_Server():
         }
 
         for paddle in left_paddles:
-            start_x = 10 + int(paddle.get('position')) * 100
-            self.data.get('left_paddles').append({"x": start_x, "y": PADDLE_HEIGHT // 2, "width": PADDLE_WIDTH, "height": PADDLE_HEIGHT})
+            start_x = 10 + (int(paddle.get('position')) - 1) * 100
+            self.data.get('left_paddles').append({"x": start_x, "y": SCREEN_HEIGHT // 2, "width": PADDLE_WIDTH, "height": PADDLE_HEIGHT})
         
         for paddle in right_paddles:
-            start_x = SCREEN_WIDTH - 10 - PADDLE_WIDTH - int(paddle.get('position')) * 100
-            self.data.get('right_paddles').append({"x": start_x, "y": PADDLE_HEIGHT // 2, "width": PADDLE_WIDTH, "height": PADDLE_HEIGHT})
+            start_x = SCREEN_WIDTH - 10 - PADDLE_WIDTH - (int(paddle.get('position')) - 1) * 100
+            self.data.get('right_paddles').append({"x": start_x, "y": SCREEN_HEIGHT // 2, "width": PADDLE_WIDTH, "height": PADDLE_HEIGHT})
     
     def run(self):
-        last_printed_time = -1
+        last_time = self.timer.countdown_seconds if self.mode == 'normal' else self.chaos_timer.countdown_seconds
+        self.data['timer'] = last_time
         while True:
             time.sleep(self.update_time)
             self.handle_client()
@@ -55,8 +57,8 @@ class Game_Server():
                 if not self.start_timer.running:
                     self.start_timer.start()
                 remaining_time = self.start_timer.get_remaining_time()
-                if remaining_time != last_printed_time:
-                    last_printed_time = remaining_time
+                if remaining_time != last_time:
+                    last_time = remaining_time
                 if remaining_time >= 0:
                     self.data['start_time'] = remaining_time
                     self.sendTo()
@@ -65,42 +67,67 @@ class Game_Server():
                     self.start_timer.stop()
                     self.sendTo()
                     break
-                    
-        self.timer.start()
+        
+        last_time = self.timer.countdown_seconds if self.mode == 'normal' else self.chaos_timer.countdown_seconds
         while self.is_running:
             time.sleep(self.update_time)
             self.handle_client()
-            self.ball.move()
-            self.handle_collision()
-            remaining_time = self.timer.get_remaining_time()
-            if remaining_time != last_printed_time:
-                last_printed_time = remaining_time
-            if remaining_time >= 0:
-                self.data['timer'] = remaining_time
-            
-            if self.ball.x < 0:
-                self.data['right_score'] =  self.data.get('right_score') + 1
-                self.ball.reset()
-                self.timer.reset()
-            elif self.ball.x > SCREEN_WIDTH:
-                self.data['left_score'] = self.data.get('left_score') + 1
-                self.ball.reset()
-                self.timer.reset()
+            if self.mode == 'normal':
+                if not self.timer.running:
+                    self.timer.start()
+                remaining_time = self.timer.get_remaining_time()
+                if remaining_time != last_time:
+                    last_time = remaining_time
+                if remaining_time >= 0:
+                    self.data['timer'] = remaining_time
 
-            if self.data.get('left_score') >= self.winning_points:
-                self.data['won'] = True
-                self.data['win_text'] = "Left Player Won!"
-            elif self.data.get('right_score') >= self.winning_points:
-                self.data['won'] = True
-                self.data['win_text'] = "Right Player Won!"
+            elif self.mode == 'chaos':
+                if not self.chaos_timer.running:
+                    self.chaos_timer.start()
+                remaining_time = self.chaos_timer.get_remaining_time()
+                if remaining_time <= last_time - 1:
+                    last_time = remaining_time
+                    if len(self.ball) < 10:
+                        self.ball.append(Ball(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, BALL_RADIUS))
+                if remaining_time >= 0:
+                    self.data['timer'] = remaining_time
 
-            self.data['ball'] = {"x": self.ball.x, "y": self.ball.y}
+            for idx, ball in enumerate(self.ball):
+                ball.move()
+                self.handle_collision(ball)
+                if ball.x < 0:
+                    self.data['right_score'] =  self.data.get('right_score') + 1
+                    if self.mode == 'chaos':
+                        self.ball.pop(idx)
+                    else:
+                        ball.reset()
+                        self.timer.reset()
+                elif ball.x > SCREEN_WIDTH:
+                    self.data['left_score'] = self.data.get('left_score') + 1
+                    if self.mode == 'chaos':
+                        self.ball.pop(idx)
+                    else:
+                        ball.reset()
+                        self.timer.reset()
+
+                if self.data.get('left_score') >= self.winning_points:
+                    self.data['won'] = True
+                    self.data['win_text'] = "Left Player Won!"
+                elif self.data.get('right_score') >= self.winning_points:
+                    self.data['won'] = True
+                    self.data['win_text'] = "Right Player Won!"
+
+            self.data['ball'] = [{"x": ball.x, "y": ball.y} for ball in self.ball]
             self.sendTo()
 
             if self.data.get('won'):
-                self.is_running = False 
+                self.is_running = False
 
-        self.timer.stop()
+        self.socket.close()
+        if self.timer.running:
+            self.timer.stop()
+        if self.chaos_timer.running:
+            self.chaos_timer.stop()
 
     def handle_client(self):
         if self.comming_data:
@@ -111,34 +138,34 @@ class Game_Server():
                 elif side == 'right':
                     self.data.get('right_paddles')[idx]['y'] = self.comming_data.get('y')
                 self.comming_data = None
-            
+
     def sendTo(self):
         for client_address in self.left_client_address + self.right_client_address:
-            self.server.sendto(json.dumps(self.data).encode(), client_address)
+            self.socket.sendto(json.dumps(self.data).encode(), client_address)
 
-    def handle_collision(self):
-        if self.ball.y + self.ball.radius >= SCREEN_HEIGHT:
-            self.ball.y_vel *= -1
-        elif self.ball.y - self.ball.radius <= 0:
-            self.ball.y_vel *= -1
+    def handle_collision(self, ball):
+        if ball.y + ball.radius >= SCREEN_HEIGHT:
+            ball.y_vel *= -1
+        elif ball.y - ball.radius <= 0:
+            ball.y_vel *= -1
 
-        if self.ball.x_vel < 0:
+        if ball.x_vel < 0:
             for paddle in self.data.get('left_paddles'):
                 paddle = Paddle(paddle.get('x'), paddle.get('y'), paddle.get('width'), paddle.get('height'))
-                if self.ball.y >= paddle.y and self.ball.y <= paddle.y + paddle.height:
-                    if self.ball.x - self.ball.radius <= paddle.x + paddle.width:
-                        self.ball.x_vel *= -1
+                if ball.y >= paddle.y and ball.y <= paddle.y + paddle.height:
+                    if ball.x - ball.radius <= paddle.x + paddle.width:
+                        ball.x_vel *= -1
                         middle_y = paddle.y + paddle.height / 2
-                        difference_in_y = middle_y - self.ball.y
-                        reduction_factor = (paddle.height / 2) / self.ball.MAX_VEL
+                        difference_in_y = middle_y - ball.y
+                        reduction_factor = (paddle.height / 2) / ball.MAX_VEL
                         y_vel = difference_in_y / reduction_factor
-                        self.ball.y_vel = -1 * y_vel
+                        ball.y_vel = -1 * y_vel
 
         for paddle in self.data.get('right_paddles'):
             paddle = Paddle(paddle.get('x'), paddle.get('y'), paddle.get('width'), paddle.get('height'))
-            if self.ball.y >= paddle.y and self.ball.y <= paddle.y + paddle.height:
-                if self.ball.x + self.ball.radius >= paddle.x:
-                    self.ball.x_vel *= -1
+            if ball.y >= paddle.y and ball.y <= paddle.y + paddle.height:
+                if ball.x + ball.radius >= paddle.x:
+                    ball.x_vel *= -1
                     middle_y = paddle
 
 class SocketThread(threading.Thread):
@@ -151,15 +178,14 @@ class SocketThread(threading.Thread):
 
     def run(self):
         print("Listening from players...")
-        while True:
+        while self.server.is_running:
             data, addr = self.socket.recvfrom(1024)
             data = json.loads(data.decode())
             client_address = (data.get('client_address')[0], data.get('client_address')[1])
-            print(client_address)
             self.server.check_address_conn[client_address] = True
-            print(self.server.check_address_conn)
             if all(self.server.check_address_conn.values()):
                 self.server.comming_data = data
+        self.socket.close()
 
 if __name__ == "__main__":
     left_paddles = [{"position": 0}, {"position": 1}]

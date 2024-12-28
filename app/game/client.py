@@ -1,5 +1,5 @@
 import threading, socket, json, argparse
-import pygame, sys
+import pygame
 from .items import *
 from .constants import *
 
@@ -19,15 +19,12 @@ class Game_Client():
         # Initialize game objects
         self.left_paddles = []
         self.right_paddles = []
-        self.ball = Ball(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, BALL_RADIUS)
+        self.ball = []
         self.left_score = 0
         self.right_score = 0
         self.won = False
         self.win_text = ''
-        self.comming_data = None
-        self.data = {
-            'client_address': addr,
-        }
+        self.data = {'client_address': addr}
         self.my_paddles = my_paddles
         self.timer = 0
         self.start_txt = ''
@@ -55,12 +52,12 @@ class Game_Client():
 
             keys = pygame.key.get_pressed()
             self.handle_paddle_movement(keys, self.my_paddles.get('idx'), self.my_paddles.get('side'))
-
             self.poll_events()
             self.draw()
 
-        if self.save_end():
+        if self.save_end:
             time.sleep(3)
+        self.socket.close()
         pygame.quit()
     
     def sendTo(self):
@@ -93,13 +90,14 @@ class Game_Client():
             text = self.SCORE_FONT.render(self.win_text, 1, WHITE)
             self.win.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT // 2 - text.get_height()//2))
             self.is_running = False
-            self.ball.reset()
+            
         else:
             for i in range(10, SCREEN_HEIGHT, SCREEN_HEIGHT // 20):
                 if i % 2 == 1:
                     continue
                 pygame.draw.rect(self.win, WHITE, (SCREEN_WIDTH // 2 - 5, i, 5, (SCREEN_HEIGHT - 20) // 20))
-            self.ball.draw(self.win)
+            for ball in self.ball:
+                ball.draw(self.win)
         
         current_timer = self.SCORE_FONT.render(f"{self.timer}", 1, TIMER_COLOR)
         self.win.blit(current_timer, (SCREEN_WIDTH // 2 - current_timer.get_width() //2 , 20))
@@ -151,7 +149,7 @@ class SocketThread(threading.Thread):
 
     def run(self):
         print('Listening from server...')
-        while True:
+        while self.client.is_running:
             with self.lock:
                 try:
                     data, addr = self.socket.recvfrom(1024)
@@ -163,13 +161,13 @@ class SocketThread(threading.Thread):
                         self.client.start_txt = data.get('start_time')
                         self.client.start_game = data.get('start_game')
 
+                        print(data)
                         self.client.left_paddles, self.client.right_paddles = [], []
                         for paddles in data.get('left_paddles'):
                             self.client.left_paddles.append(Paddle(paddles.get('x'), paddles.get('y'), paddles.get('width'), paddles.get('height')))
                         for paddles in data.get('right_paddles'):
                             self.client.right_paddles.append(Paddle(paddles.get('x'), paddles.get('y'), paddles.get('width'), paddles.get('height')))
-                        self.client.ball.x = data['ball'].get('x')
-                        self.client.ball.y = data['ball'].get('y')
+                        self.client.ball = [Ball(ball.get('x'), ball.get('y'), BALL_RADIUS) for ball in data['ball']]
                         self.client.left_score = data.get('left_score')
                         self.client.right_score = data.get('right_score')
                         self.client.timer = data.get('timer')
@@ -177,7 +175,7 @@ class SocketThread(threading.Thread):
                         if data.get('won'):
                             self.client.won = data.get('won')
                             self.client.win_text = data.get('win_text')
-                            break
+        self.socket.close()
 
 if __name__ == "__main__":
     left_paddles = [{"position": 0}, {"position": 1}]

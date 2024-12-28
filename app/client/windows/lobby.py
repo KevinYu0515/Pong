@@ -37,8 +37,8 @@ class LobbyState(WindowState):
             
             async with self.app.condition:
                 await self.app.condition.wait()
-                print(self.app.event_response.get('data'))
-                self.build_room(self.app.event_response.get('data'))
+                response = self.app.event_response
+                self.build_room(response.get('data'))
 
         except Exception as e:
             print(e)
@@ -59,7 +59,7 @@ class LobbyState(WindowState):
         
         self.scrollable_frame.bind("<Configure>", update_scroll_region)
 
-        self.room_frames = []
+        self.room_frames.clear()
         for idx, room in enumerate(rooms):
             room_frame = ttk.Labelframe(self.scrollable_frame, text=f"房間 ID: {room.get('id')}", bootstyle=PRIMARY, height=100, padding=20)
             room_frame.pack(pady=10, fill="x", padx=(20, 0), expand=True)

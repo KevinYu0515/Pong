@@ -2,11 +2,14 @@ import socket, random
 
 def get_free_port():
     while True:
-        port = random.randint(1024, 65535)
+        port = random.randint(10000, 65535)
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
                 s.bind(('0.0.0.0', port))
                 return port
+            except PermissionError as e:
+                print(f"Port {port} is not available")
+                continue
             except OSError:
                 continue
 

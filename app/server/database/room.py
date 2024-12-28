@@ -58,14 +58,6 @@ def update_room_groups(id, left_group=None, right_group=None):
         session.commit()
     session.close()
 
-def delete_room_setting(id):
-    session = Session()
-    room_setting = session.query(RoomSettings).filter_by(id=id).first()
-    if room_setting:
-        session.delete(room_setting)
-        session.commit()
-    session.close()
-
 def get_room_setting(id):
     session = Session()
     room = session.query(RoomSettings).filter_by(id=id).first()

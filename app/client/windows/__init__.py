@@ -27,14 +27,14 @@ class App(AppInterface):
         self.username = None
         self.room_id = None
         self.states = {
-            'Login': LoginState(self),
-            'Lobby': LobbyState(self),
-            'Create_Room': Create_RoomState(self),
-            'Waiting': WaitingState(self),
-            'Ending': EndingState(self)
+            'Login': LoginState,
+            'Lobby': LobbyState,
+            'Create_Room': Create_RoomState,
+            'Waiting': WaitingState,
+            'Ending': EndingState
         }
 
-        self.state = self.states['Login']
+        self.state = self.states['Login'](self)
         self.state.handle()
 
     def start_websocket_client(self):
@@ -59,35 +59,7 @@ class App(AppInterface):
             while True:
                 response = json.loads(await self.websocket_client.recv())
                 print(f"Received message: {response}")
-                if response.get('status') == 'start_game':
-                    game_client_address = get_local_address_from_websockets(self.websocket_client)
-                    game_server_address = (response.get('data').get('server_address')[0], response.get('data').get('server_address')[1])
-                    left_players = response.get('data').get('left_players')
-                    right_players = response.get('data').get('right_players')
-                    self.window.withdraw()
-                    new_game = Game_Client(game_client_address, game_server_address, left_players, right_players, {"side": self.state.side, "idx": self.state.position - 1})
-                    new_game.run()
-                    print("The Game is ending...")
-                    self.state.return_to_lobby()
-                    self.window.deiconify()
-                    
-                elif response.get('status') == 'refresh':
-                    print("Updating state...")
-                    for widget in self.window.winfo_children():
-                        widget.destroy()
-                    if 'data' in response and 'chat' in response.get('data'):
-                        self.state.chat.append(response.get('data').get('chat'))
-                    self.state.handle()
-
-                elif response.get('status') == 'error':
-                    async with self.condition:
-                        self.event_response = response
-                        self.condition.notify()
-
-                elif response.get('status') == 'success':
-                    async with self.condition:
-                        self.event_response = response
-                        self.condition.notify()
+                asyncio.create_task(self.handle_event(response))
 
         except websockets.exceptions.ConnectionClosedOK:
             print("Connection closed cleanly by the server.")
@@ -95,6 +67,43 @@ class App(AppInterface):
             print(f"Connection closed with error: {e}")
         except Exception as e:
             print(f"Error receiving message: {e}")
+
+    async def handle_event(self, response):
+        if response.get('status') == 'start_game':
+
+            try:
+                game_client_address = get_local_address_from_websockets(self.websocket_client)
+                game_server_address = (response.get('data').get('server_address')[0], response.get('data').get('server_address')[1])
+                left_players = response.get('data').get('left_players')
+                right_players = response.get('data').get('right_players')
+                
+                game = Game_Client(game_client_address, game_server_address, left_players, right_players, {"side": self.state.side, "idx": self.state.position - 1})
+                self.window.withdraw()
+                print("Starting game...")
+                game.run()
+                print("Ending game...")
+                self.change_state('Ending')
+                self.window.deiconify()
+
+            except Exception as e:
+                print(e)
+
+        elif response.get('status') == 'refresh':
+            print("Updating state...")
+            self.clear_window()
+            if 'data' in response and 'chat' in response.get('data'):
+                self.state.chat.append(response.get('data').get('chat'))
+            self.state.handle()
+
+        elif response.get('status') == 'error':
+            async with self.condition:
+                self.event_response = response
+                self.condition.notify()
+
+        elif response.get('status') == 'success':
+            async with self.condition:
+                self.event_response = response
+                self.condition.notify()
 
     async def close_connection(self):
         if self.websocket_client:
@@ -136,7 +145,7 @@ class App(AppInterface):
     def change_state(self, state_name):
         self.clear_window()
         if state_name in self.states:
-            self.state = self.states[state_name]
+            self.state = self.states[state_name](self)
             self.state.handle()
 
     def set_username(self, username):

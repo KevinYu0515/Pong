@@ -63,6 +63,9 @@ async def handle_event(event):
     if event.get('type') == 'start_game':
         response = start_game(event.get('data'))
         refresh = False
+    if event.get('type') == 'delete_room':
+        response = delete_room(event.get('data'))
+        refresh = True
     
     return [response, refresh, boardcast]
 
@@ -146,15 +149,13 @@ def switch_position(data):
 def toggle_ready(data):
     name = data.get('name')
     status = data.get('status')
+    is_last_player = data.get('is_last_player')
     user.set_user_ready_status(name, status)
+    if is_last_player:
+        return {"status": "success", "message": "Game Start"}
     return {"status": "success", "message": "成功切換準備狀態"}
 
-def start_game(data):
+def delete_room(data):
     room_id = data.get('room_id')
-    room_settings = room.get_room_setting(room_id)
-    player_limit = room_settings.get('player_limit')
-    left_group = room_settings.get('left_group')
-    right_group = room_settings.get('right_group')
-    if sum(1 for player in left_group if player.get('ready')) == 0 or sum(1 for player in right_group if player.get('ready')) == 0:
-        return {"status": "error", "message": "陣營人數至少為 1 人"}
-    return {"status": "success", "message": "遊戲開始"}
+    room.delete_room(room_id)
+    return {"status": "success", "message": "房間已刪除"}

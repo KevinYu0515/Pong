@@ -35,7 +35,7 @@ class Create_RoomState(WindowState):
         lf = ttk.Labelframe(self.frame, text="每局時間長度（秒）",bootstyle=PRIMARY, width=300, height=100, padding=20)
         lf.pack(pady=10, padx=20)
         duration_input = ttk.Spinbox(lf, from_=1, to=120, increment=1)
-        duration_input.set(30)
+        duration_input.set(10)
         duration_input.pack(fill=X, pady=5)
 
         # 獲勝條件
