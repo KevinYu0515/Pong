@@ -10,4 +10,4 @@ TIMER_COLOR = '#FCF300'
 MY_PADDLE_COLOR = (253, 21, 71)
 
 # 遊戲更新率
-FPS = 200
+FPS = 150

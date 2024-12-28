@@ -9,7 +9,7 @@ import asyncio, threading, websockets, json
 from ...game import Game_Client
 from ...utils import *
 
-SERVER_URL = "ws://localhost:10001"
+SERVER_URL = "ws://127.0.0.1:10001"
 
 class App(AppInterface):
     def __init__(self, themename='superhero', title='Neon Pong', geometry='400x400'):
@@ -23,7 +23,6 @@ class App(AppInterface):
         self.window.geometry(geometry)
         self.window.protocol("WM_DELETE_WINDOW", self.on_close)
         self.is_start = False
-
         self.username = None
         self.room_id = None
         self.states = {
@@ -106,6 +105,7 @@ class App(AppInterface):
                 self.condition.notify()
 
     async def close_connection(self):
+        print(self.websocket_client)
         if self.websocket_client:
             try:
                 await self.websocket_client.close()
@@ -119,24 +119,19 @@ class App(AppInterface):
 
         async def handle_logout():
             try:
-                await self.websocket_client.send(json.dumps({
-                    "type": "logout",
-                    "data": {
-                        "name": self.username
-                    }
-                }))
-
-                async with self.condition:
-                    await self.condition.wait()
-                    print("Logged out")
-                    self.set_username(None)
-                    self.change_state('Login')
+                if self.username is not None:
+                    await self.websocket_client.send(json.dumps({
+                        "type": "logout",
+                        "data": {
+                            "name": self.username
+                        }
+                    }))
+                
+                await self.close_connection()
 
             except Exception as e:
                 print(e)
-        
         asyncio.run_coroutine_threadsafe(handle_logout(), self.loop)
-        asyncio.run_coroutine_threadsafe(self.close_connection(), self.loop)
 
     def clear_window(self):
         for widget in self.window.winfo_children():

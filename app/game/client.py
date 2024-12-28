@@ -11,8 +11,11 @@ class Game_Client():
 
         # Initialize socket
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.setblocking(False)
         self.lock = threading.Lock()
-        self.receiver = SocketThread(addr, self, self.lock)
+        self.receiver = SocketThread(addr[1], self, self.lock)
+        self.receiver.daemon = True
         self.receiver.start()
         self.server_address = server_address
 
@@ -32,12 +35,12 @@ class Game_Client():
         self.save_end = True
 
         for paddle in left_paddles:
-            start_x = 10 + int(paddle.get('position')) * 100
-            self.left_paddles.append(Paddle(start_x, PADDLE_HEIGHT // 2, PADDLE_WIDTH, PADDLE_HEIGHT))
+            start_x = 10 + (int(paddle.get('position') ) - 1) * 100
+            self.left_paddles.append(Paddle(start_x, SCREEN_HEIGHT // 2, PADDLE_WIDTH, PADDLE_HEIGHT))
 
         for paddle in right_paddles:
-            start_x = SCREEN_WIDTH - 10 - PADDLE_WIDTH - int(paddle.get('position')) * 100
-            self.right_paddles.append(Paddle(start_x, PADDLE_HEIGHT // 2, PADDLE_WIDTH, PADDLE_HEIGHT))
+            start_x = SCREEN_WIDTH - 10 - PADDLE_WIDTH - (int(paddle.get('position')) - 1) * 100
+            self.right_paddles.append(Paddle(start_x, SCREEN_HEIGHT // 2, PADDLE_WIDTH, PADDLE_HEIGHT))
 
         # Initialize pygame
         pygame.init()
@@ -46,10 +49,9 @@ class Game_Client():
         pygame.display.set_caption("Pong")
 
     def run(self):
-        self.sendTo()
         while self.is_running:
             clock.tick(FPS)
-
+            
             keys = pygame.key.get_pressed()
             self.handle_paddle_movement(keys, self.my_paddles.get('idx'), self.my_paddles.get('side'))
             self.poll_events()
@@ -57,7 +59,11 @@ class Game_Client():
 
         if self.save_end:
             time.sleep(3)
+
+        self.receiver.join()
         self.socket.close()
+        pygame.display.quit()
+        pygame.mixer.quit()
         pygame.quit()
     
     def sendTo(self):
@@ -67,8 +73,8 @@ class Game_Client():
             self.data['y'] = self.left_paddles[idx].y
         elif side == 'right':
             self.data['y'] = self.right_paddles[idx].y
-
-        self.socket.sendto(json.dumps(self.data).encode(), self.server_address)
+        
+        res = self.socket.sendto(json.dumps(self.data).encode(), self.server_address)
 
     def poll_events(self):
         for event in pygame.event.get():
@@ -126,28 +132,29 @@ class Game_Client():
         if side == 'left':
             if keys[pygame.K_w] and self.left_paddles[idx].y - self.left_paddles[idx].VEL >= 0:
                 self.left_paddles[idx].move(up=True)
-                self.sendTo()
             if keys[pygame.K_s] and self.left_paddles[idx].y + self.left_paddles[idx].VEL + self.left_paddles[idx].height <= SCREEN_HEIGHT:
                 self.left_paddles[idx].move(up=False)
-                self.sendTo()
 
         elif side == 'right':
             if keys[pygame.K_UP] and self.right_paddles[idx].y - self.right_paddles[idx].VEL >= 0:
                 self.right_paddles[idx].move(up=True)
-                self.sendTo()
             if keys[pygame.K_DOWN] and self.right_paddles[idx].y + self.right_paddles[idx].VEL + self.right_paddles[idx].height <= SCREEN_HEIGHT:
                 self.right_paddles[idx].move(up=False)
-                self.sendTo()
+        self.sendTo()
 
 class SocketThread(threading.Thread):
-    def __init__(self, addr, client, lock):
+    def __init__(self, port, client, lock):
         threading.Thread.__init__(self)
         self.client: Game_Client = client
         self.lock = lock
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.bind(addr)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.setblocking(False)
+        self.socket.settimeout(0.1)
+        self.socket.bind(('0.0.0.0', port))
 
     def run(self):
+        data = None
         print('Listening from server...')
         while self.client.is_running:
             with self.lock:
@@ -175,6 +182,7 @@ class SocketThread(threading.Thread):
                         if data.get('won'):
                             self.client.won = data.get('won')
                             self.client.win_text = data.get('win_text')
+        print('Closing socket...')
         self.socket.close()
 
 if __name__ == "__main__":

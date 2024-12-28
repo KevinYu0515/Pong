@@ -1,0 +1,15 @@
+version: '3.9'
+
+services:
+  app:
+    image: pong-server
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pong-server-app
+    ports:
+      - "10001:10001"
+      - "5555:5555/udp"
+    volumes:
+      - ./app:/app/app:ro
+    network_mode: "host"

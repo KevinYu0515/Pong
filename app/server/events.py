@@ -60,9 +60,6 @@ async def handle_event(event):
         response = toggle_ready(event.get('data'))
         refresh = False
         boardcast = True
-    if event.get('type') == 'start_game':
-        response = start_game(event.get('data'))
-        refresh = False
     if event.get('type') == 'delete_room':
         response = delete_room(event.get('data'))
         refresh = True

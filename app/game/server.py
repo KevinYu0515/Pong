@@ -7,16 +7,8 @@ from .constants import *
 class Game_Server():
     def __init__(self, addr, left_client_address, right_client_address, left_paddles, right_paddles, winning_points=10, timer=30, mode='normal'):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.left_client_address = left_client_address
-        self.right_client_address = right_client_address
-        self.lock = threading.Lock()
-        self.recevier = SocketThread(addr, self, self.lock)
-        self.recevier.start()
-        self.update_time = 0.01
-        self.check_address_conn = {}
-        for address in left_client_address + right_client_address:
-            self.check_address_conn[address] = False
-
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.setblocking(False)
         self.is_running = True
         self.timer = Timer(timer)
         self.start_timer = Timer(3)
@@ -46,7 +38,18 @@ class Game_Server():
         for paddle in right_paddles:
             start_x = SCREEN_WIDTH - 10 - PADDLE_WIDTH - (int(paddle.get('position')) - 1) * 100
             self.data.get('right_paddles').append({"x": start_x, "y": SCREEN_HEIGHT // 2, "width": PADDLE_WIDTH, "height": PADDLE_HEIGHT})
-    
+
+        self.left_client_address = left_client_address
+        self.right_client_address = right_client_address
+        self.lock = threading.Lock()
+        self.receiver = SocketThread(addr, self, self.lock)
+        self.receiver.daemon = True
+        self.receiver.start()
+        self.update_time = 0.01
+        self.check_address_conn = {}
+        for address in left_client_address + right_client_address:
+            self.check_address_conn[address] = False
+
     def run(self):
         last_time = self.timer.countdown_seconds if self.mode == 'normal' else self.chaos_timer.countdown_seconds
         self.data['timer'] = last_time
@@ -123,11 +126,14 @@ class Game_Server():
             if self.data.get('won'):
                 self.is_running = False
 
-        self.socket.close()
         if self.timer.running:
             self.timer.stop()
         if self.chaos_timer.running:
             self.chaos_timer.stop()
+        
+        self.receiver.join()
+        self.socket.close()
+        
 
     def handle_client(self):
         if self.comming_data:
@@ -174,17 +180,26 @@ class SocketThread(threading.Thread):
         self.server: Game_Server = server
         self.lock = lock
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.setblocking(False)
+        self.socket.settimeout(0.1)
         self.socket.bind(addr)
 
     def run(self):
+        data = None
         print("Listening from players...")
         while self.server.is_running:
-            data, addr = self.socket.recvfrom(1024)
-            data = json.loads(data.decode())
-            client_address = (data.get('client_address')[0], data.get('client_address')[1])
-            self.server.check_address_conn[client_address] = True
-            if all(self.server.check_address_conn.values()):
-                self.server.comming_data = data
+            try:
+                data, addr = self.socket.recvfrom(1024)
+                data = json.loads(data.decode())
+            except socket.timeout:
+                continue
+            finally:
+                if data is not None:
+                    client_address = (data.get('client_address')[0], data.get('client_address')[1])
+                    self.server.check_address_conn[client_address] = True
+                    if all(self.server.check_address_conn.values()):
+                        self.server.comming_data = data
         self.socket.close()
 
 if __name__ == "__main__":
