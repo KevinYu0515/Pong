@@ -42,10 +42,18 @@ async def process_message(websocket, message):
         right_client_sockets = groupSocket.groups[f"{event.get('data').get('room_id')}_right"]
         left_client_address = [get_remote_address_from_websockets(socket) for socket in left_client_sockets]
         right_client_address = [get_remote_address_from_websockets(socket) for socket in right_client_sockets]
-        # game_server_port = get_free_port()
-        game_server_port = 5555
+        game_server_port = get_free_port()
         game_server_address = ('0.0.0.0', game_server_port)
         room = get_room_setting(event.get('data').get('room_id'))
+        delete_room(event.get('data').get('room_id'))
+        async def send_refresh():
+            message = json.dumps({"status": "refresh"})
+            for client in connected_clients:
+                try:
+                    await client.send(message)
+                except websockets.exceptions.ConnectionClosed:
+                    connected_clients.remove(client)
+        asyncio.run_coroutine_threadsafe(send_refresh(), loop)
         
         def start_game(event):
             game = Game_Server(game_server_address,
@@ -62,17 +70,8 @@ async def process_message(websocket, message):
 
             print('Game ended')
             games.remove(game)
-            delete_room(event.get('data').get('room_id'))
             groupSocket.groups.pop(f"{event.get('data').get('room_id')}_left")
             groupSocket.groups.pop(f"{event.get('data').get('room_id')}_right")
-            async def send_refresh():
-                message = json.dumps({"status": "refresh"})
-                for client in connected_clients:
-                    try:
-                        await client.send(message)
-                    except websockets.exceptions.ConnectionClosed:
-                        connected_clients.remove(client)
-            asyncio.run_coroutine_threadsafe(send_refresh(), loop)
 
         game_thread = threading.Thread(target=start_game, args=(event,))
         game_thread.start()

@@ -20,9 +20,9 @@ class Create_RoomState(WindowState):
         self.lf_mode = ttk.Labelframe(self.frame, text="遊戲模式", bootstyle=PRIMARY, width=300, height=100, padding=20)
         self.lf_mode.pack(pady=10, padx=20)
         mode = ttk.IntVar(value=0)
-        ttk.Radiobutton(self.lf_mode, text='雙人對打模式', variable=mode, value=0, command=lambda: self.toggle_player_limit(mode.get())).pack(side=ttk.LEFT, padx=10)
-        ttk.Radiobutton(self.lf_mode, text='多人模式', variable=mode, value=1, command=lambda: self.toggle_player_limit(mode.get())).pack(side=ttk.LEFT, padx=10)
-        ttk.Radiobutton(self.lf_mode, text='混亂模式', variable=mode, value=2, command=lambda: self.toggle_player_limit(mode.get())).pack(side=ttk.LEFT, padx=10)
+        ttk.Radiobutton(self.lf_mode, text='雙人對打模式', variable=mode, value=0, command=lambda: self.change_settings(mode.get())).pack(side=ttk.LEFT, padx=10)
+        ttk.Radiobutton(self.lf_mode, text='多人模式', variable=mode, value=1, command=lambda: self.change_settings(mode.get())).pack(side=ttk.LEFT, padx=10)
+        ttk.Radiobutton(self.lf_mode, text='混亂模式', variable=mode, value=2, command=lambda: self.change_settings(mode.get())).pack(side=ttk.LEFT, padx=10)
 
         # 人數限制
         self.lf_player_limit = ttk.Labelframe(self.frame, text="陣營人數（上限為 3 )",bootstyle=PRIMARY, width=300, height=100, padding=20)
@@ -32,9 +32,9 @@ class Create_RoomState(WindowState):
         player_limit.pack(fill=X, pady=5)
 
         # 時間長度
-        lf = ttk.Labelframe(self.frame, text="每局時間長度（秒）",bootstyle=PRIMARY, width=300, height=100, padding=20)
-        lf.pack(pady=10, padx=20)
-        duration_input = ttk.Spinbox(lf, from_=1, to=120, increment=1)
+        self.lf_duration = ttk.Labelframe(self.frame, text="每局時間長度（秒）",bootstyle=PRIMARY, width=300, height=100, padding=20)
+        self.lf_duration.pack(pady=10, padx=20)
+        duration_input = ttk.Spinbox(self.lf_duration, from_=1, to=120, increment=1)
         duration_input.set(10)
         duration_input.pack(fill=X, pady=5)
 
@@ -77,8 +77,18 @@ class Create_RoomState(WindowState):
        
         asyncio.run_coroutine_threadsafe(handle_create_room(), self.app.loop)
 
+    def change_settings(self, selected_mode):
+        self.toggle_player_limit(selected_mode)
+        self.toggle_duration(selected_mode)
+
     def toggle_player_limit(self, selected_mode):
         if selected_mode == 0:
             self.lf_player_limit.pack_forget()
         else:
             self.lf_player_limit.pack(pady=10, padx=20, after=self.lf_mode)
+    
+    def toggle_duration(self, selected_mode):
+        if selected_mode == 2:
+            self.lf_duration.pack_forget()
+        else:
+            self.lf_duration.pack(pady=10, padx=20, after=self.lf_mode)

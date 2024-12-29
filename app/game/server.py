@@ -16,7 +16,7 @@ class Game_Server():
 
         self.winning_points = winning_points
         self.ball = [Ball(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, BALL_RADIUS)]
-        self.chaos_timer = Timer(300)
+        self.chaos_timer = Timer(999)
 
         self.comming_data = None
         self.data = {
@@ -112,7 +112,11 @@ class Game_Server():
                     else:
                         ball.reset()
                         self.timer.reset()
-
+                if remaining_time <=0:
+                    self.data['right_score'] =  self.data.get('right_score') + 1
+                    self.data['left_score'] = self.data.get('left_score') + 1
+                    ball.reset()
+                    self.timer.reset()
                 if self.data.get('left_score') >= self.winning_points:
                     self.data['won'] = True
                     self.data['win_text'] = "Left Player Won!"
@@ -198,7 +202,6 @@ class SocketThread(threading.Thread):
                 data, addr = self.socket.recvfrom(1024)
                 data = json.loads(data.decode())
                 self.disconnect = 0
-                print(addr)
             except socket.timeout:
                 print('Timeout')
                 self.disconnect += 1
