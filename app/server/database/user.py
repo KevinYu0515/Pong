@@ -62,12 +62,6 @@ def user_logout(name):
     session.commit()
     session.close()
 
-def get_all_users():
-    session = Session()
-    users = session.query(UserDB).all()
-    session.close()
-    return users
-
 def set_user_ready_status(name, status):
     session = Session()
     user = session.query(UserDB).filter_by(name=name).first()

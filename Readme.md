@@ -4,6 +4,10 @@
 
 注意：Client 的 TCP 與 UDP 共用，目前遇到些奇怪的斷線問題，見如下的設計問題
 
+## 使用方式
+開啟遊戲 Server：‵python -m app.server.main`
+玩家加入：‵python -m app.client.main‵
+
 ## 📝 TO DO LIST
 
 - Stage1 登入
@@ -53,9 +57,9 @@
     - [x] 混亂模式刪除自訂義時間功能
     - [x] websockets 斷開登出使用者，ex：刪除 process
 
-- 設計問題
-    奇怪現象：有時候結束一場遊戲，TCP 會斷開連線
-    猜測：可能因為 Client UDP 與 TCP 的 port 共用，所以有時候 UDP 斷開連線時，TCP 有機率也會跟著斷開
+- 設計問題  
+    奇怪現象：有時候結束一場遊戲，TCP 會斷開連線  
+    猜測：可能因為 Client UDP 與 TCP 的 port 共用，所以有時候 UDP 斷開連線時，TCP 有機率也會跟著斷開  
 
 - 已刪除功能
     - 自動代理：需要演算法偵測與反饋

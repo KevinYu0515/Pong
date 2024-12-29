@@ -5,8 +5,7 @@ import os, asyncio, json, threading
 from .database.room import get_room_setting, delete_room
 from ..utils import *
 from ..game import Game_Server 
-from .database.user import user_logout, get_all_users
-import signal
+from .database.user import user_logout
 
 HOST = os.getenv('HOST', '0.0.0.0')
 PORT = os.getenv('PORT', '10001')
