@@ -18,14 +18,24 @@ class LoginState(WindowState):
         self.title = ttk.Label(self.frame, text="Neon Pong", style="primary.TLabel", font=("Arial", 20))
         self.title.pack(pady=5)
 
+        self.conn_error = ttk.Label(self.frame, text="Some issues when connecting to the server.", style="danger.TLabel")
+        self.conn_error2 = ttk.Label(self.frame, text="Waiting for server restarting", style="danger.TLabel")
+
         self.label_username = ttk.Label(self.frame, text="Username")
         self.label_username.pack(pady=5)
 
         self.username_entry = ttk.Entry(self.frame)
         self.username_entry.pack(pady=10)
 
-        login_button = ttk.Button(self.frame, text="Login", command=lambda: self.on_login())
-        login_button.pack(pady=20)
+        self.login_button = ttk.Button(self.frame, text="Login", command=lambda: self.on_login())
+        self.login_button.pack(pady=20)
+
+        if self.app.connection_error:
+            self.conn_error.pack(pady=(5, 0))
+            self.conn_error2.pack(pady=(0, 5))
+            self.label_username.pack_forget()
+            self.username_entry.pack_forget()
+            self.login_button.pack_forget()
 
     def on_login(self):
         username = self.username_entry.get()

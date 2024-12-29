@@ -4,7 +4,12 @@ from .items import *
 from .constants import *
 
 clock = pygame.time.Clock()
-pygame.init()
+
+try:
+    pygame.init()
+except KeyboardInterrupt:
+    print("Program interrupted. Exiting...")
+    pygame.quit()
 
 class Game_Client():
     def __init__(self, addr, server_address, left_paddles, right_paddles, my_paddles):

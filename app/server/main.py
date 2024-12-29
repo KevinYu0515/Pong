@@ -5,13 +5,24 @@ import os, asyncio, json, threading
 from .database.room import get_room_setting, delete_room
 from ..utils import *
 from ..game import Game_Server 
+from .database.user import user_logout, get_all_users
+import signal
 
 HOST = os.getenv('HOST', '0.0.0.0')
 PORT = os.getenv('PORT', '10001')
 
-connected_clients = set()
+connected_clients = dict()
 games = set()
 groupSocket = GroupSocket()
+
+def end_action(websocket):
+    name = next((key for key, value in connected_clients.items() if value == websocket), None)
+    if name is not None:
+        user_logout(name)
+        del connected_clients[name]
+    for group, clients in groupSocket.groups.items():
+        if websocket in clients:
+            clients.remove(websocket)
 
 # 平行處理接收的訊息
 async def process_message(websocket, message):
@@ -22,6 +33,9 @@ async def process_message(websocket, message):
         return
 
     response, is_refresh, boardcast = await handle_event(event)
+
+    if event.get('type') == 'login' and response.get('status') == 'success':
+        connected_clients[event.get('data').get('name')] = websocket
 
     if event.get('type') == 'group_action' and event.get('action') == 'join_group':
         groupSocket.add_broadcast(websocket, event.get('data'))
@@ -48,13 +62,14 @@ async def process_message(websocket, message):
         delete_room(event.get('data').get('room_id'))
         async def send_refresh():
             message = json.dumps({"status": "refresh"})
-            for client in connected_clients:
+            for name, client in connected_clients.items():
                 try:
                     await client.send(message)
                 except websockets.exceptions.ConnectionClosed:
-                    connected_clients.remove(client)
+                    end_action(client)
+
         asyncio.run_coroutine_threadsafe(send_refresh(), loop)
-        
+
         def start_game(event):
             game = Game_Server(game_server_address,
                                 left_client_address,
@@ -63,7 +78,7 @@ async def process_message(websocket, message):
                                 room.get('right_group'),
                                 room.get('winning_points'),
                                 room.get('duration'),
-                                'normal' if room.get('mode') != 2 else 'chaos'
+                                int(room.get('mode'))
                                 )
             games.add(game)
             game.run()
@@ -95,7 +110,7 @@ async def process_message(websocket, message):
     if is_refresh or boardcast:
         message = json.dumps({"status": "refresh"})
         if is_refresh:
-            clients = connected_clients
+            clients = connected_clients.values()
         if boardcast:
             clients = groupSocket.groups[f"{event.get('data').get('room_id')}_left"].union(groupSocket.groups[f"{event.get('data').get('room_id')}_right"])
         for client in clients:
@@ -104,11 +119,10 @@ async def process_message(websocket, message):
                 try:
                     await client.send(message)
                 except websockets.exceptions.ConnectionClosed:
-                    connected_clients.remove(client)
+                    end_action(client)
 
-async def server(websocket):
+async def serve(websocket):
     print(f"Client {websocket.remote_address} connected")
-    connected_clients.add(websocket)
 
     try:
         while True:
@@ -118,25 +132,40 @@ async def server(websocket):
 
     except websockets.exceptions.ConnectionClosedOK:
         print("Client disconnected")
-        connected_clients.remove(websocket)
-        for group, clients in groupSocket.groups.items():
-            if websocket in clients:
-                clients.remove(websocket)
+        end_action(websocket)
     except websockets.exceptions.ConnectionClosedError as e:
         print("Client disconnected with an error.")
         print(e)
-        connected_clients.remove(websocket)
-        for group, clients in groupSocket.groups.items():
-            if websocket in clients:
-                clients.remove(websocket)
-    except KeyboardInterrupt:
-        print("Server stopped")
+        end_action(websocket)
+    
+
+async def shutdown_server(server):
+    print("Server shutting down...")
+    for name, client in connected_clients.items():
+        await client.close()
+        print(name)
+        if name is not None:
+            user_logout(name)
+    server.close()
+    await server.wait_closed()
+    print("Server is closed")
+    
+        
 
 async def main():
     init_db()
-    async with websockets.serve(server, HOST, PORT) as websocket_server:
-        print(f'start server: {HOST}:{PORT}')
+    server = await websockets.serve(serve, HOST, PORT)
+    print(f"Start server: {HOST}:{PORT}")
+    try:
         await asyncio.Future()
+    except asyncio.CancelledError:
+        pass
+    finally:
+        await shutdown_server(server)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Server interrupted by user.")
+        

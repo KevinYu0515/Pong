@@ -16,6 +16,7 @@ class App(AppInterface):
         threading.Thread(target=self.start_websocket_client, daemon=True).start()
         self.loop = asyncio.get_event_loop()
         self.condition = asyncio.Condition()
+        self.connection_error = False
         self.event_response = None
         self.websocket_client = None
         self.window = ttk.Window(themename=themename)
@@ -42,16 +43,26 @@ class App(AppInterface):
         loop.run_until_complete(self.connect_to_server())
 
     async def connect_to_server(self):
-        try:
-            async with websockets.connect(SERVER_URL) as self.websocket_client:
-                print("Connected to server")
-                self.loop = asyncio.get_event_loop()
-                await asyncio.gather(
-                    self.listen_for_messages()
-                )
+        while True:
+            try:
+                async with websockets.connect(SERVER_URL) as self.websocket_client:
+                    print("Connected to server")
+                    if self.connection_error:
+                        self.connection_error = False
+                        self.clear_window()
+                        self.state.handle()
+                    self.loop = asyncio.get_event_loop()
+                    await asyncio.gather(
+                        self.listen_for_messages()
+                    )
 
-        except Exception as e:
-            print(f"Failed to connect to server: {e}")
+            except Exception as e:
+                if not self.connection_error:
+                    self.connection_error = True
+                    self.clear_window()
+                    self.state.handle()
+                print(f"Failed to connect to server: {e}")
+                await asyncio.sleep(5)
 
     async def listen_for_messages(self):
         try:
@@ -62,8 +73,12 @@ class App(AppInterface):
 
         except websockets.exceptions.ConnectionClosedOK:
             print("Connection closed cleanly by the server.")
+            self.connection_error = True
+            self.change_state('Login')
         except websockets.exceptions.ConnectionClosedError as e:
             print(f"Connection closed with error: {e}")
+            self.connection_error = True
+            self.change_state('Login')
         except Exception as e:
             print(f"Error receiving message: {e}")
 

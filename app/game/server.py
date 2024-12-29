@@ -5,13 +5,13 @@ import argparse
 from .constants import *
 
 class Game_Server():
-    def __init__(self, addr, left_client_address, right_client_address, left_paddles, right_paddles, winning_points=10, timer=30, mode='normal'):
+    def __init__(self, addr, left_client_address, right_client_address, left_paddles, right_paddles, winning_points=10, timer=30, mode=0):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.setblocking(False)
         self.is_running = True
         self.timer = Timer(timer)
-        self.start_timer = Timer(3)
+        self.start_timer = Timer(5)
         self.mode = mode
 
         self.winning_points = winning_points
@@ -45,14 +45,20 @@ class Game_Server():
         self.receiver = SocketThread(addr, self, self.lock)
         self.receiver.daemon = True
         self.receiver.start()
-        self.update_time = 0.01
+        self.update_time = 0.005
         self.check_address_conn = {}
         for address in left_client_address + right_client_address:
             self.check_address_conn[address] = False
 
     def run(self):
-        last_time = self.timer.countdown_seconds if self.mode == 'normal' else self.chaos_timer.countdown_seconds
+        last_time = self.chaos_timer.countdown_seconds if self.mode == 2 else self.timer.countdown_seconds
         self.data['timer'] = last_time
+        if self.mode == 0:
+            self.data['start_time'] = '2 PLAYERS MODE'
+        elif self.mode == 1:
+            self.data['start_time'] = 'MULTI PLAYERS MODE'
+        elif self.mode == 2:
+            self.data['start_time'] = 'CHAOS MODE'
         while self.is_running:
             time.sleep(self.update_time)
             self.handle_client()
@@ -60,22 +66,21 @@ class Game_Server():
                 if not self.start_timer.running:
                     self.start_timer.start()
                 remaining_time = self.start_timer.get_remaining_time()
-                if remaining_time != last_time:
+                if remaining_time <= 3 and remaining_time != last_time:
                     last_time = remaining_time
-                if remaining_time >= 0:
-                    self.data['start_time'] = remaining_time
-                    self.sendTo()
-                else:
-                    self.data['start_game'] = True
-                    self.start_timer.stop()
-                    self.sendTo()
-                    break
+                    if remaining_time >= 0:
+                        self.data['start_time'] = remaining_time
+                    else:
+                        self.data['start_game'] = True
+                        self.start_timer.stop()
+                        break
+            self.sendTo()
         
-        last_time = self.timer.countdown_seconds if self.mode == 'normal' else self.chaos_timer.countdown_seconds
+        last_time = self.chaos_timer.countdown_seconds if self.mode == 2 else self.timer.countdown_seconds
         while self.is_running:
             time.sleep(self.update_time)
             self.handle_client()
-            if self.mode == 'normal':
+            if self.mode != 2:
                 if not self.timer.running:
                     self.timer.start()
                 remaining_time = self.timer.get_remaining_time()
@@ -84,7 +89,7 @@ class Game_Server():
                 if remaining_time >= 0:
                     self.data['timer'] = remaining_time
 
-            elif self.mode == 'chaos':
+            elif self.mode == 2:
                 if not self.chaos_timer.running:
                     self.chaos_timer.start()
                 remaining_time = self.chaos_timer.get_remaining_time()
@@ -100,14 +105,14 @@ class Game_Server():
                 self.handle_collision(ball)
                 if ball.x < 0:
                     self.data['right_score'] =  self.data.get('right_score') + 1
-                    if self.mode == 'chaos':
+                    if self.mode == 2:
                         self.ball.pop(idx)
                     else:
                         ball.reset()
                         self.timer.reset()
                 elif ball.x > SCREEN_WIDTH:
                     self.data['left_score'] = self.data.get('left_score') + 1
-                    if self.mode == 'chaos':
+                    if self.mode == 2:
                         self.ball.pop(idx)
                     else:
                         ball.reset()
