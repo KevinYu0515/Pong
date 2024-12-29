@@ -5,8 +5,8 @@
 注意：Client 的 TCP 與 UDP 共用，目前遇到些奇怪的斷線問題，見如下的設計問題
 
 ## 使用方式
-開啟遊戲 Server：‵python -m app.server.main`
-玩家加入：‵python -m app.client.main‵
+開啟遊戲 Server：`python -m app.server.main`  
+玩家加入：`python -m app.client.main`
 
 ## 📝 TO DO LIST
 
