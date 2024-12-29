@@ -83,6 +83,7 @@ class App(AppInterface):
                 print("Ending game...")
                 self.change_state('Ending')
                 self.window.deiconify()
+                self.is_start = False
 
             except Exception as e:
                 print(e)

@@ -4,6 +4,7 @@ from .items import *
 from .constants import *
 
 clock = pygame.time.Clock()
+pygame.init()
 
 class Game_Client():
     def __init__(self, addr, server_address, left_paddles, right_paddles, my_paddles):
@@ -43,12 +44,12 @@ class Game_Client():
             self.right_paddles.append(Paddle(start_x, SCREEN_HEIGHT // 2, PADDLE_WIDTH, PADDLE_HEIGHT))
 
         # Initialize pygame
-        pygame.init()
         self.win = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.RESIZABLE)
         self.SCORE_FONT = pygame.font.SysFont("comicsans", 50)
         pygame.display.set_caption("Pong")
 
     def run(self):
+
         while self.is_running:
             clock.tick(FPS)
             
@@ -61,10 +62,14 @@ class Game_Client():
             time.sleep(3)
 
         self.receiver.join()
-        self.socket.close()
+        try:
+            print('Closing Main socket...')
+            self.socket.shutdown(socket.SHUT_RDWR)
+            self.socket.close()
+        except Exception as e:
+            print(f"Error closing socket: {e}")
+
         pygame.display.quit()
-        pygame.mixer.quit()
-        pygame.quit()
     
     def sendTo(self):
         side, idx = self.my_paddles.get('side'), self.my_paddles.get('idx')
@@ -152,38 +157,48 @@ class SocketThread(threading.Thread):
         self.socket.setblocking(False)
         self.socket.settimeout(0.1)
         self.socket.bind(('0.0.0.0', port))
+        self.disconnect = 0
 
     def run(self):
         data = None
         print('Listening from server...')
         while self.client.is_running:
-            with self.lock:
-                try:
-                    data, addr = self.socket.recvfrom(1024)
-                    data = json.loads(data.decode())
-                except socket.timeout:
-                    continue
-                finally:
-                    if data is not None:
-                        self.client.start_txt = data.get('start_time')
-                        self.client.start_game = data.get('start_game')
+            try:
+                data, addr = self.socket.recvfrom(1024)
+                data = json.loads(data.decode())
+                self.disconnect = 0
+            except socket.timeout:
+                print('Timeout')
+                self.disconnect += 1
+                if self.disconnect >= 30:
+                    self.client.is_running = False
+                continue
+            finally:
+                if data is not None:
+                    self.client.start_txt = data.get('start_time')
+                    self.client.start_game = data.get('start_game')
 
-                        print(data)
-                        self.client.left_paddles, self.client.right_paddles = [], []
-                        for paddles in data.get('left_paddles'):
-                            self.client.left_paddles.append(Paddle(paddles.get('x'), paddles.get('y'), paddles.get('width'), paddles.get('height')))
-                        for paddles in data.get('right_paddles'):
-                            self.client.right_paddles.append(Paddle(paddles.get('x'), paddles.get('y'), paddles.get('width'), paddles.get('height')))
-                        self.client.ball = [Ball(ball.get('x'), ball.get('y'), BALL_RADIUS) for ball in data['ball']]
-                        self.client.left_score = data.get('left_score')
-                        self.client.right_score = data.get('right_score')
-                        self.client.timer = data.get('timer')
+                    print(data)
+                    self.client.left_paddles, self.client.right_paddles = [], []
+                    for paddles in data.get('left_paddles'):
+                        self.client.left_paddles.append(Paddle(paddles.get('x'), paddles.get('y'), paddles.get('width'), paddles.get('height')))
+                    for paddles in data.get('right_paddles'):
+                        self.client.right_paddles.append(Paddle(paddles.get('x'), paddles.get('y'), paddles.get('width'), paddles.get('height')))
+                    self.client.ball = [Ball(ball.get('x'), ball.get('y'), BALL_RADIUS) for ball in data['ball']]
+                    self.client.left_score = data.get('left_score')
+                    self.client.right_score = data.get('right_score')
+                    self.client.timer = data.get('timer')
 
-                        if data.get('won'):
-                            self.client.won = data.get('won')
-                            self.client.win_text = data.get('win_text')
-        print('Closing socket...')
-        self.socket.close()
+                    if data.get('won'):
+                        self.client.won = data.get('won')
+                        self.client.win_text = data.get('win_text')
+       
+        try:
+            print('Closing Thread socket...')
+            self.socket.shutdown(socket.SHUT_RDWR)
+            self.socket.close()
+        except Exception as e:
+            print(f"Error closing socket: {e}")
 
 if __name__ == "__main__":
     left_paddles = [{"position": 0}, {"position": 1}]

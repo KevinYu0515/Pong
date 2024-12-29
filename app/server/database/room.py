@@ -4,11 +4,12 @@ from sqlalchemy.orm import relationship
 from .group import GroupDB
 from .user import UserDB
 from . import Base, Session
+import uuid
 
 class RoomSettings(Base):
     __tablename__ = 'room_settings'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     mode = Column(Integer, nullable=False)
     player_limit = Column(Integer, nullable=False)
     duration = Column(Integer, nullable=False)
@@ -61,6 +62,17 @@ def update_room_groups(id, left_group=None, right_group=None):
 def get_room_setting(id):
     session = Session()
     room = session.query(RoomSettings).filter_by(id=id).first()
+    if room is None:
+        session.close()
+        return {
+            "id": None,
+            "mode": None,
+            "player_limit": None,
+            "duration": None,
+            "winning_points": None,
+            'left_group': [],
+            'right_group': []
+        }
 
     left_group_players = session.query(UserDB).filter(UserDB.room_id == id, UserDB.side == 'left').all()
     right_group_players = session.query(UserDB).filter(UserDB.room_id == id, UserDB.side == 'right').all()
@@ -142,6 +154,7 @@ def delete_room(room_id):
     for group in groups:
         session.delete(group)
     room = session.query(RoomSettings).filter_by(id=room_id).first()
-    session.delete(room)
+    if room:
+        session.delete(room)
     session.commit()
     session.close()

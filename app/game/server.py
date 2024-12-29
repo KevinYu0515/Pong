@@ -53,7 +53,7 @@ class Game_Server():
     def run(self):
         last_time = self.timer.countdown_seconds if self.mode == 'normal' else self.chaos_timer.countdown_seconds
         self.data['timer'] = last_time
-        while True:
+        while self.is_running:
             time.sleep(self.update_time)
             self.handle_client()
             if all(self.check_address_conn.values()):
@@ -132,8 +132,12 @@ class Game_Server():
             self.chaos_timer.stop()
         
         self.receiver.join()
-        self.socket.close()
-        
+        try:
+            print('Closing Main socket...')
+            self.socket.shutdown(socket.SHUT_RDWR)
+            self.socket.close()
+        except Exception as e:
+            print(f"Error closing socket: {e}")
 
     def handle_client(self):
         if self.comming_data:
@@ -184,15 +188,22 @@ class SocketThread(threading.Thread):
         self.socket.setblocking(False)
         self.socket.settimeout(0.1)
         self.socket.bind(addr)
+        self.disconnect = 0
 
     def run(self):
-        data = None
+        data, addr = None, None
         print("Listening from players...")
         while self.server.is_running:
             try:
                 data, addr = self.socket.recvfrom(1024)
                 data = json.loads(data.decode())
+                self.disconnect = 0
+                print(addr)
             except socket.timeout:
+                print('Timeout')
+                self.disconnect += 1
+                if self.disconnect >= 30:
+                    self.server.is_running = False
                 continue
             finally:
                 if data is not None:
@@ -200,7 +211,12 @@ class SocketThread(threading.Thread):
                     self.server.check_address_conn[client_address] = True
                     if all(self.server.check_address_conn.values()):
                         self.server.comming_data = data
-        self.socket.close()
+        try:
+            print('Closing Thread socket...')
+            self.socket.shutdown(socket.SHUT_RDWR)
+            self.socket.close()
+        except Exception as e:
+            print(f"Error closing socket: {e}")
 
 if __name__ == "__main__":
     left_paddles = [{"position": 0}, {"position": 1}]
