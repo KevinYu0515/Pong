@@ -90,7 +90,7 @@ async def process_message(websocket, message):
         game_thread = threading.Thread(target=start_game, args=(event,))
         game_thread.start()
 
-        server_address = (get_remote_address_from_websockets(websocket)[0], game_server_port)
+        server_address = (get_local_address_from_websockets(websocket)[0], game_server_port)
         for player_socket in left_client_sockets.union(right_client_sockets):
             await player_socket.send(json.dumps({
                                         "status": "start_game", 

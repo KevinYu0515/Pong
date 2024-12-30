@@ -14,6 +14,7 @@ import os
 load_dotenv()
 SERVER_IP = os.getenv("SERVER_IP", "127.0.0.1")
 
+print(f"Connecting to server at {SERVER_IP}")
 SERVER_URL = f"ws://{SERVER_IP}:10001"
 
 class App(AppInterface):

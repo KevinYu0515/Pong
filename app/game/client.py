@@ -84,6 +84,7 @@ class Game_Client():
         elif side == 'right':
             self.data['y'] = self.right_paddles[idx].y
         
+        print(self.server_address)
         res = self.socket.sendto(json.dumps(self.data).encode(), self.server_address)
 
     def poll_events(self):
