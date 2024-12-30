@@ -6,10 +6,7 @@ from .database.room import get_room_setting, delete_room
 from ..utils import *
 from ..game import Game_Server 
 from .database.user import user_logout
-from dotenv import load_dotenv
 
-load_dotenv()
-SERVER_IP = os.getenv('SERVER_IP', '127.0.0.1')
 HOST = os.getenv('HOST', '0.0.0.0')
 PORT = os.getenv('PORT', '10001')
 
@@ -93,7 +90,7 @@ async def process_message(websocket, message):
         game_thread = threading.Thread(target=start_game, args=(event,))
         game_thread.start()
 
-        server_address = (SERVER_IP, game_server_port)
+        server_address = (get_local_address_from_websockets(websocket)[0], game_server_port)
         for player_socket in left_client_sockets.union(right_client_sockets):
             await player_socket.send(json.dumps({
                                         "status": "start_game", 

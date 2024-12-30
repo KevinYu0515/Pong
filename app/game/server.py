@@ -46,9 +46,8 @@ class Game_Server():
         self.receiver.daemon = True
         self.receiver.start()
         self.update_time = 0.005
-        self.check_address_conn = {}
-        for address in left_client_address + right_client_address:
-            self.check_address_conn[address] = False
+        self.check_address_conn = set()
+        self.player_count = len(left_client_address) + len(right_client_address)
 
     def run(self):
         last_time = self.chaos_timer.countdown_seconds if self.mode == 2 else self.timer.countdown_seconds
@@ -62,7 +61,7 @@ class Game_Server():
         while self.is_running:
             time.sleep(self.update_time)
             self.handle_client()
-            if all(self.check_address_conn.values()):
+            if len(self.check_address_conn) >= self.player_count:
                 if not self.start_timer.running:
                     self.start_timer.start()
                 remaining_time = self.start_timer.get_remaining_time()
@@ -216,8 +215,8 @@ class SocketThread(threading.Thread):
             finally:
                 if data is not None:
                     client_address = (data.get('client_address')[0], data.get('client_address')[1])
-                    self.server.check_address_conn[client_address] = True
-                    if all(self.server.check_address_conn.values()):
+                    self.server.check_address_conn.add(client_address)
+                    if len(self.server.check_address_conn) >= self.server.player_count:
                         self.server.comming_data = data
         try:
             print('Closing Thread socket...')

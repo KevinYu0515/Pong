@@ -97,7 +97,7 @@ class App(AppInterface):
                 left_players = response.get('data').get('left_players')
                 right_players = response.get('data').get('right_players')
                 
-                game = Game_Client(game_client_address, game_server_address, left_players, right_players, {"side": self.state.side, "idx": self.state.position - 1})
+                game = Game_Client(game_client_address, (SERVER_IP, game_server_address[1]), left_players, right_players, {"side": self.state.side, "idx": self.state.position - 1})
                 self.window.withdraw()
                 print("Starting game...")
                 game.run()
