@@ -6,7 +6,9 @@ from .database.room import get_room_setting, delete_room
 from ..utils import *
 from ..game import Game_Server 
 from .database.user import user_logout
+from dotenv import load_dotenv
 
+load_dotenv()
 SERVER_IP = os.getenv('SERVER_IP', '127.0.0.1')
 HOST = os.getenv('HOST', '0.0.0.0')
 PORT = os.getenv('PORT', '10001')
