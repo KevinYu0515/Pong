@@ -8,8 +8,13 @@ from .ending import EndingState
 import asyncio, threading, websockets, json
 from ...game import Game_Client
 from ...utils import *
+from dotenv import load_dotenv
+import os
 
-SERVER_URL = "ws://127.0.0.1:10001"
+load_dotenv()
+SERVER_IP = os.getenv("SERVER_IP", "127.0.0.1")
+
+SERVER_URL = f"ws://{SERVER_IP}:10001"
 
 class App(AppInterface):
     def __init__(self, themename='superhero', title='Neon Pong', geometry='400x400'):
